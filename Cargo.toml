@@ -1,0 +1,29 @@
+[package]
+name = "biord"
+version = "0.1.0"
+authors = ["Paul Antonov, <paul.antonov@gmail.com>"]
+exclude = [".gitignore", ".idea", ".travis.yml"]
+edition = "2018"
+
+publish=false
+repository = "https://github.com/pantonov/biord"
+#documentation = "https://docs.rs/ordcode"
+readme = "README.md"
+categories = [ "encoding", "data-structures", "database" ]
+keywords = [ "ordered", "lexicographical", "encoding", "serialize", "key-value" ]
+
+license = "MIT OR Apache-2.0"
+description = "Serde serializers for prefix-free encoding with lexicographical ordering"
+
+[features]
+default = [ "serde" ]
+
+[dependencies]
+serde = { version = "1.*", optional = true }
+error-chain = { version="0.12.*", default-features=false }
+smallvec = { version = "1.4.*", optional = true }
+sled = { version="0.*", optional = true }
+
+[dev-dependencies]
+serde_bytes = "0.*"
+serde_derive = "1.*"
