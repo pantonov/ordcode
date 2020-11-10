@@ -38,13 +38,13 @@
 //! Serializing with descending lexicographical order is particularly useful for key-value storages like
 //! _rocksdb_, where iteration in reverse key order is expensive.
 
-#![doc(html_root_url = "https://docs.rs/ordcode")]
-#![crate_name = "ordcode"]
+//#![doc(html_root_url = "https://docs.rs/ordcode")]
+#![crate_name = "biord"]
 
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(clippy::missing_errors_doc)]
 
-#[cfg(feature="serde")] #[macro_use] extern crate serde;
+#[cfg(feature="xserde")] #[macro_use] extern crate serde;
 #[macro_use] extern crate error_chain;
 #[cfg(feature="smallvec")] extern crate smallvec;
 
@@ -55,11 +55,13 @@ pub use errors::{ Error, ErrorKind, ResultExt };
 pub type Result<T = (), E = errors::Error> = core::result::Result<T, E>;
 
 pub mod primitives;
+pub mod varint;
+pub mod bytes_esc;
 
-#[cfg(feature="serde")] mod ord_ser;
-#[cfg(feature="serde")] mod ord_de;
-#[cfg(feature="serde")] mod bin_ser;
-#[cfg(feature="serde")] mod bin_de;
+//#[cfg(feature="serde")] mod ord_ser;
+//#[cfg(feature="serde")] mod ord_de;
+//#[cfg(feature="serde")] mod bin_ser;
+//#[cfg(feature="serde")] mod bin_de;
 
 /// Specifies lexicographical ordering for serialization. There are no ordering marks in the
 /// serialized data; specification of different ordering for serialization and deserialization
@@ -69,7 +71,7 @@ pub enum Order {
     Ascending,
     Descending,
     /// For use by other crates. For the purposes of `ordcode`, same as `Ascending`.
-    Unspecified
+    Unordered
 }
 
 #[cfg(not(any(feature="smallvec", feature="sled")))]
@@ -102,50 +104,41 @@ impl BytesBufExt for Vec<u8> {
     fn into_vec8(self) -> Vec<u8> { self }
 }
 
-/// Trait for low-level reader, optimized for byte buffers.
+/// Simple byte reader from buffer
 ///
 /// If you need to read from `&[u8]`, you may use `BytesReader` provided by this crate.
 pub trait ReadBytes {
-    /// Call a closure with to slice of the buffer containing exactly `n` bytes.
-    /// If `advance` is true, advance buffer by `n` bytes after calling closure.
-    fn apply_bytes<R, F>(&mut self, n: usize, advance: bool, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R>;
+    /// Peek `n` bytes from head
+    fn peek(&mut self, n: usize) -> Result<&'_[u8]>;
 
-    /// Iterate over buffer, splitting on escape byte `esc`, calling closure with
-    /// reference to slice which includes `esc` byte in last position, and
-    /// with value of next byte after `esc`. If `advance` is true, advance buffer
-    /// by slice.len()+1. Iteration continues while closure returns `Ok(true)`.
-    fn apply_over_esc<F>(&mut self, esc: u8, advance: bool, f: &mut F) -> Result
-        where F: FnMut(&[u8], u8) -> Result<bool>;
+    /// Advance buffer head by `n` bytes. `n` should be smaller than remaining buffer size.
+    fn advance(&mut self, n: usize);
 
-    /// Read all data until the end of input and apply closure. Implementation of this method
-    /// is not required, as it is used only by primitive `deserialize_bytes_noesc`,
-    /// which is not used in Serde serializers provided by this crate.
-    fn apply_all<R, F>(&mut self, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R> { let _ = f; err!(BytesReadAllNotImplemented) }
+    /// Get `n` bytes from the beginning of buffer, advance by `n` bytes
+    fn read<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: Fn(&[u8]) -> Result<R> {
+        let r = f(self.peek(n)?)?;
+        self.advance(n);
+        Ok(r)
+    }
+    /// Returns view into remaining buffer
+    fn remaining_buffer(&mut self) -> &'_[u8];
 
-    /// Returns `true` if at the end of input
-    fn at_end(&mut self) -> bool;
+    /// Check if buffer is fully consumed (empty)
+    fn is_empty(&mut self) -> bool { self.remaining_buffer().is_empty() }
 }
 
 // forwarding for being able to use `&mut ReadBytes` in place of `ReadBytes`
 impl<'a, T> ReadBytes for &'a mut T where T: ReadBytes  {
-    #[inline]
-    fn apply_bytes<R, F>(&mut self, n: usize, advance: bool, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R> {
-        (*self).apply_bytes(n, advance, f)
+    fn peek(&mut self, n: usize) -> Result<&'_[u8]> {
+        (*self).peek(n)
     }
-    #[inline]
-    fn apply_over_esc<F>(&mut self, esc: u8, advance: bool, f: &mut F) -> Result
-        where F: FnMut(&[u8], u8) -> Result<bool> { (*self).apply_over_esc(esc, advance, f) }
-    #[inline]
-    fn apply_all<R, F>(&mut self, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R> { (*self).apply_all( f) }
-    #[inline]
-    fn at_end(&mut self) -> bool { (*self).at_end() }
+    fn advance(&mut self, n: usize) {
+        (*self).advance(n)
+    }
+    fn remaining_buffer(&mut self) -> &'_[u8] { (*self).remaining_buffer() }
 }
 
-/// Implementation of `ReadBytes` from byte slice
+/// Implementation of `BiReadBytes` from byte slice
 pub struct BytesReader<'a> {
     buf: &'a [u8],
 }
@@ -153,55 +146,49 @@ pub struct BytesReader<'a> {
 impl<'a> BytesReader<'a> {
     /// Constructs reader from provided byte slice
     #[must_use] pub fn new(buf: &'a [u8]) -> Self { Self { buf } }
-}
 
-impl <'a> ReadBytes for BytesReader<'a> {
-    #[inline]
-    fn apply_bytes<R, F>(&mut self, n: usize, advance: bool, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R>
-    {
-        if self.buf.len() >= n {
-            let r = f(&self.buf[..n]);
-            if advance {
-                self.buf = &self.buf[n..];
-            }
-            r
+    fn peek_head(&mut self, n: usize) -> Result<&'_[u8]> {
+        if n <= self.buf.len() {
+            Ok(&self.buf[..n])
         } else {
             err!(PrematureEndOfInput)
         }
     }
-    #[inline]
-    fn apply_over_esc<F>(&mut self, esc: u8, advance: bool, f: &mut F) -> Result
-        where F: FnMut(&[u8], u8) -> Result<bool>
-    {
-        let mut b = &self.buf[..];
-        let r = loop {
-            if let Some(pos) = b.iter().position(|v| *v == esc) {
-                if pos + 1 >= b.len() {
-                    break err!(PrematureEndOfInput)
-                }
-                if !f(&b[..=pos], b[pos+1])? {
-                    b = &b[pos+2..];
-                    break Ok(())
-                }
-                b = &b[pos+2..];
-            } else {
-                break err!(PrematureEndOfInput)
-            }
-        };
-        if advance {
-            self.buf = b
+    fn advance_head(&mut self, n: usize) {
+        self.buf = &self.buf[n..];
+    }
+    fn peek_tail(&mut self, n: usize) -> Result<&'_[u8]> {
+        if n <= self.buf.len() {
+            Ok(&self.buf[(self.buf.len() - n)..])
+        } else {
+            err!(PrematureEndOfInput)
         }
-        r
     }
-    #[inline]
-    fn apply_all<R, F>(&mut self, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R>
-    {
-        f(self.buf)
+    fn advance_tail(&mut self, n: usize) {
+        self.buf = &self.buf[..self.buf.len() - n];
     }
-    #[inline]
-    fn at_end(&mut self) -> bool { self.buf.is_empty() }
+}
+
+impl <'a> ReadBytes for BytesReader<'a> {
+    fn peek(&mut self, n: usize) -> Result<&'_[u8]> {
+        self.peek_head(n)
+    }
+    fn advance(&mut self, n: usize) {
+        self.advance_head(n)
+    }
+    fn remaining_buffer(&mut self) -> &'_[u8] { self.buf }
+}
+
+pub struct ReadFromTail<'a, 'b>(pub &'a mut BytesReader<'b>);
+
+impl <'a, 'b> ReadBytes for ReadFromTail<'a, 'b> {
+    fn peek(&mut self, n: usize) -> Result<&'_[u8]> {
+        self.0.peek_tail(n)
+    }
+    fn advance(&mut self, n: usize) {
+        self.0.advance_tail(n)
+    }
+    fn remaining_buffer(&mut self) -> &'_[u8] { self.0.remaining_buffer() }
 }
 
 impl std::io::Read for BytesReader<'_> {
@@ -211,37 +198,87 @@ impl std::io::Read for BytesReader<'_> {
 }
 
 /// Trait for writer to the byte buffer
-///
-/// This crate provides implementation of `WriteBytes` for `BytesBuf`, which can be `Vec<u8>` or
-/// `smallvec::SmallVec<[u8;36]>` depending on `smallvec` feature setting.
 pub trait WriteBytes {
     /// Write to the byte buffer
     fn write(&mut self, value: &[u8]) -> Result;
-    /// Write single byte to the byte buffer
-    fn write_byte(&mut self, value: u8) -> Result {
-        self.write(&[value])
+}
+
+/// Bipartite byte buffer
+pub struct BiBuffer<'a> {
+    buf: &'a mut [u8],
+    head: usize,
+    tail: usize,
+}
+
+impl<'a> BiBuffer<'a> {
+    /// Use provided byte slice as buffer
+    pub fn new(buf: &'a mut [u8]) -> Self {
+        let tail = buf.len();
+        Self { buf, head: 0, tail }
+    }
+    /// Collapse extra space in internal buffer, returns data length
+    pub fn merge(&mut self) -> Result<usize> {
+        if self.head != self.tail {
+            self.buf.copy_within(self.tail.., self.head);
+            Ok(self.buf.len() - (self.tail - self.head))
+        } else {
+            Ok(self.buf.len())
+        }
+    }
+    /// Checks if buffer completely filled (collapsed)
+    pub fn check(&self) -> Result {
+        if self.head == self.tail {
+            Ok(())
+        } else {
+            err!(BufferUnderflow)
+        }
+    }
+    fn write_head(&mut self, value: &[u8]) -> Result {
+        if (self.tail - self.head) < value.len() {
+            err!(BufferOverflow)
+        } else {
+            self.buf[self.head..(self.head + value.len())].copy_from_slice(value);
+            self.head += value.len();
+            Ok(())
+        }
+    }
+    fn write_tail(&mut self, value: &[u8]) -> Result {
+        if (self.tail - self.head) < value.len() {
+            err!(BufferOverflow)
+        } else {
+            let end_offs = self.tail - value.len();
+            self.buf[end_offs..].copy_from_slice(value);
+            self.tail -= value.len();
+            Ok(())
+        }
     }
 }
 
-impl WriteBytes for Vec<u8> {
-    #[inline]
-    fn write(&mut self, buf: &[u8]) -> Result {
-        self.extend_from_slice(buf);
-        Ok(())
+impl<'a> WriteBytes for BiBuffer<'a> {
+    fn write(&mut self, value: &[u8]) -> Result {
+        self.write_head(value)
     }
-    #[inline]
-    fn write_byte(&mut self, b: u8) -> Result {
-        self.push(b);
-        Ok(())
+}
+
+/// Adapter for writing to the tail of the buffer
+pub struct WriteToTail<'a, 'b>(pub &'a mut BiBuffer<'b>);
+
+impl<'a, 'b> WriteBytes for WriteToTail<'a, 'b> {
+    fn write(&mut self, value: &[u8]) -> Result {
+        self.0.write_tail(value)
     }
 }
 
 // forwarding for being able to use `&mut WriteBytes` in place of `WriteBytes`
 impl<T> WriteBytes for &mut T where T: WriteBytes {
-    #[inline]
     fn write(&mut self, buf: &[u8]) -> Result { (*self).write(buf) }
-    #[inline]
-    fn write_byte(&mut self, b: u8) -> Result { (*self).write_byte(b) }
+}
+
+impl WriteBytes for Vec<u8> {
+    fn write(&mut self, buf: &[u8]) -> Result {
+        self.extend_from_slice(buf);
+        Ok(())
+    }
 }
 
 #[cfg(feature="smallvec")]
@@ -257,21 +294,7 @@ impl BytesBufExt for BytesBuf {
 }
 
 
-#[cfg(any(feature="smallvec", feature="sled"))]
-impl WriteBytes for BytesBuf {
-    #[inline]
-    fn write(&mut self, buf: &[u8]) -> Result {
-        self.extend_from_slice(buf);
-        Ok(())
-    }
-    #[inline]
-    fn write_byte(&mut self, b: u8) -> Result {
-        self.push(b);
-        Ok(())
-    }
-}
-
-#[cfg(feature="serde")]
+#[cfg(feature="xserde")]
 pub mod ord {
     //! Methods for lexicographically ordered serialization and deserialization.
 
@@ -309,7 +332,7 @@ pub mod ord {
         match order {
             Order::Descending =>
                 value.serialize(&mut new_serializer_descending(writer)),
-            Order::Ascending|Order::Unspecified =>
+            Order::Ascending|Order::Unordered =>
                 value.serialize(&mut new_serializer_ascending(writer)),
         }
     }
@@ -343,7 +366,7 @@ pub mod ord {
         match order {
             Order::Descending =>
                 T::deserialize(&mut new_deserializer_descending(reader)),
-            Order::Ascending|Order::Unspecified =>
+            Order::Ascending|Order::Unordered =>
                 T::deserialize(&mut new_deserializer_ascending(reader)),
         }
     }
@@ -437,7 +460,7 @@ pub mod ord {
     }
 }
 
-#[cfg(feature="serde")]
+#[cfg(feature="xserde")]
 pub mod bin {
     //! Methods for fast binary serialization and deserialization. Ordering parameter is ignored.
 
