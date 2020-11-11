@@ -44,7 +44,7 @@
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(clippy::missing_errors_doc)]
 
-#[cfg(feature="xserde")] #[macro_use] extern crate serde;
+#[cfg(feature="serde")] #[macro_use] extern crate serde;
 #[macro_use] extern crate error_chain;
 #[cfg(feature="smallvec")] extern crate smallvec;
 
@@ -57,6 +57,7 @@ pub type Result<T = (), E = errors::Error> = core::result::Result<T, E>;
 pub mod primitives;
 pub mod varint;
 pub mod bytes_esc;
+pub mod hint_ser;
 
 //#[cfg(feature="serde")] mod ord_ser;
 //#[cfg(feature="serde")] mod ord_de;
@@ -179,6 +180,7 @@ impl <'a> ReadBytes for BytesReader<'a> {
     fn remaining_buffer(&mut self) -> &'_[u8] { self.buf }
 }
 
+/// Adapter for `BytesReader` for reading from tail if the buffer
 pub struct ReadFromTail<'a, 'b>(pub &'a mut BytesReader<'b>);
 
 impl <'a, 'b> ReadBytes for ReadFromTail<'a, 'b> {
@@ -216,23 +218,20 @@ impl<'a> BiBuffer<'a> {
         let tail = buf.len();
         Self { buf, head: 0, tail }
     }
-    /// Collapse extra space in internal buffer, returns data length
-    pub fn merge(&mut self) -> Result<usize> {
+    /// Finalize by collapsing extra space in internal buffer, returns data length
+    pub fn finalize(&mut self) -> Result<usize> {
         if self.head != self.tail {
             self.buf.copy_within(self.tail.., self.head);
-            Ok(self.buf.len() - (self.tail - self.head))
+            let len = self.buf.len() - (self.tail - self.head);
+            self.head = self.tail;
+            Ok(len)
         } else {
             Ok(self.buf.len())
         }
     }
     /// Checks if buffer completely filled (collapsed)
-    pub fn check(&self) -> Result {
-        if self.head == self.tail {
-            Ok(())
-        } else {
-            err!(BufferUnderflow)
-        }
-    }
+    pub fn is_complete(&self) -> bool { self.head == self.tail }
+
     fn write_head(&mut self, value: &[u8]) -> Result {
         if (self.tail - self.head) < value.len() {
             err!(BufferOverflow)

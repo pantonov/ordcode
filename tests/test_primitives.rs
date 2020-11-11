@@ -39,7 +39,7 @@ macro_rules! test_ser {
                 let mut bb  = BiBuffer::new(buf);
                 primitives::$sfn(&mut bb, *val, Order::Ascending).unwrap();
                 primitives::$sfn(WriteToTail(&mut bb), *val, Order::Descending).unwrap();
-                let nl = bb.merge().unwrap();
+                let nl = bb.finalize().unwrap();
                 let mut r = BytesReader::new(&buf[..nl]);
                 assert_eq!(primitives::$dfn(&mut r, Order::Ascending).unwrap(), *val);
                 assert_eq!(primitives::$dfn(ReadFromTail(&mut r), Order::Descending).unwrap(), *val);
