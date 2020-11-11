@@ -5,8 +5,7 @@
 //! `{ 0xF8, 0x01 }` for ascending order, `{ 0x07, 0xFE }` for descending order. Escaped byte
 //!   value `0xF8` is chosen because it does not appear in valid UTF-8, and escaping zero
 //!   is impractical (it is too common)
-use crate::{ ReadBytes, WriteBytes, Result, ResultExt, ErrorKind,
-             Order, BytesBuf, BytesBufExt, ord_cond };
+use crate::{ReadBytes, WriteBytes, Result, ResultExt, ErrorKind, Order, BytesBuf, BytesBufExt, ord_cond, EncodingParams};
 
 fn apply_over_esc<R, F>(rb: &mut R, esc: u8, advance: bool, f: &mut F) -> Result
     where F: FnMut(&[u8], u8) -> Result<bool>,
@@ -61,14 +60,14 @@ fn unescaped_length(rb: &mut impl ReadBytes, esc: &ByteStrEscapes) -> Result<usi
 
 /// Calculate length of pending byte sequence from reader
 #[inline]
-pub fn bytes_length(reader: &mut impl ReadBytes, order: Order) -> Result<usize> {
-    ord_cond!(order, unescaped_length(reader, &BSTR_ESCAPE_DESC),
+pub fn bytes_length(reader: &mut impl ReadBytes, param: impl EncodingParams) -> Result<usize> {
+    ord_cond!(param, unescaped_length(reader, &BSTR_ESCAPE_DESC),
               unescaped_length(reader, &BSTR_ESCAPE_ASC))
 }
 
 /// Serialize byte sequence to escaped representation
-pub fn serialize_bytes(writer: &mut impl WriteBytes, value: &[u8], order: Order) -> Result {
-    ord_cond!(order, {
+pub fn serialize_bytes(writer: &mut impl WriteBytes, value: &[u8], param: impl EncodingParams) -> Result {
+    ord_cond!(param, {
         for b in value {
             if BSTR_ESCAPE_ASC.start == *b {
                 writer.write(&[BSTR_ESCAPE_DESC.start, BSTR_ESCAPE_DESC.esc])?;
@@ -121,17 +120,17 @@ fn read_escaped_bytes_desc(rb: &mut impl ReadBytes, out: &mut impl WriteBytes) -
 
 /// Deserialize escaped byte sequence and write result to `WriteBytes`
 #[inline]
-pub fn deserialize_bytes_to_writer(reader: &mut impl ReadBytes, out: &mut impl WriteBytes, order: Order) -> Result
+pub fn deserialize_bytes_to_writer(reader: &mut impl ReadBytes, out: &mut impl WriteBytes, param: impl EncodingParams) -> Result
 {
-    ord_cond!(order, read_escaped_bytes_desc(reader, out),
+    ord_cond!(param, read_escaped_bytes_desc(reader, out),
               read_escaped_bytes_asc(reader, out))
 }
 
 /// Deserialize escaped byte sequence to `VecBuf`
-pub fn deserialize_bytes(reader: &mut impl ReadBytes, order: Order) -> Result<BytesBuf> {
-    let len = bytes_length(reader, order)?;
+pub fn deserialize_bytes(reader: &mut impl ReadBytes, param: impl EncodingParams) -> Result<BytesBuf> {
+    let len = bytes_length(reader, &param)?;
     let mut v = BytesBuf::with_reserve(len);
-    deserialize_bytes_to_writer(reader, &mut v, order)?;
+    deserialize_bytes_to_writer(reader, &mut v, &param)?;
     Ok(v)
 }
 
@@ -147,36 +146,37 @@ pub fn write_complement_bytes(writer: &mut impl WriteBytes, input: &[u8]) -> Res
 /// Serialize whole input buffer as ordered byte string, no escaping and termination sequences.
 /// This method copies source byte buffer for `Ascending` order, or bitwise complements
 /// if ordering is `Descending`.
-pub fn serialize_bytes_noesc(writer: &mut impl WriteBytes, v: &[u8], order: Order) -> Result
+pub fn serialize_bytes_noesc(writer: &mut impl WriteBytes, v: &[u8], param: impl EncodingParams) -> Result
 {
-    ord_cond!(order, write_complement_bytes(writer, v), writer.write(v))
+    ord_cond!(param, write_complement_bytes(writer, v), writer.write(v))
 }
 
 /// Deserialize input buffer as ordered byte string into writer, no escaping and termination sequences
-pub fn deserialize_bytes_noesc_to_writer(reader: &mut impl ReadBytes, writer: &mut impl WriteBytes, order: Order) -> Result
+pub fn deserialize_bytes_noesc_to_writer(reader: &mut impl ReadBytes, writer: &mut impl WriteBytes,
+                                         param: impl EncodingParams) -> Result
 {
     let b = reader.remaining_buffer();
-    let r = ord_cond!(order, write_complement_bytes(writer, b), writer.write(b))?;
+    ord_cond!(param, write_complement_bytes(writer, b), writer.write(b))?;
     let len = b.len();
     reader.advance(len);
-    Ok(r)
+    Ok(())
 }
 
 /// Deserialize input buffer as ordered byte string to `VecBuf`, no escaping and termination sequences
-pub fn deserialize_bytes_noesc(reader: &mut impl ReadBytes, order: Order) -> Result<BytesBuf>
+pub fn deserialize_bytes_noesc(reader: &mut impl ReadBytes, param: impl EncodingParams) -> Result<BytesBuf>
 {
     let v = reader.remaining_buffer();
     let mut res = BytesBuf::with_reserve(v.len());
-    ord_cond!(order, { write_complement_bytes(&mut res, v)?; }, { res.extend_from_slice(v); });
+    ord_cond!(param, { write_complement_bytes(&mut res, v)?; }, { res.extend_from_slice(v); });
     let len = v.len();
     reader.advance(len);
     Ok(res)
 }
 
 /// Deserialize input buffer as ordered bytes to `String`, no escaping and termination sequences
-pub fn deserialize_bytes_noesc_to_string(reader: &mut impl ReadBytes, order: Order) -> Result<String>
+pub fn deserialize_bytes_noesc_to_string(reader: &mut impl ReadBytes, param: impl EncodingParams) -> Result<String>
 {
-    let bstr = deserialize_bytes_noesc(reader, order)?;
+    let bstr = deserialize_bytes_noesc(reader, param)?;
     let s = String::from_utf8(bstr.into_vec8()).chain_err(|| ErrorKind::InvalidUtf8Encoding)?;
     Ok(s)
 }

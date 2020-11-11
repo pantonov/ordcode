@@ -23,7 +23,7 @@ pub fn varu64_decoded_len(first_byte: u8) -> u8 {
 }
 
 /// Encode `u64` as variable length bytes, write to tail of the buffer
-pub fn varu64_encode_to_writer<W: WriteBytes>(writer: &mut W, value: u64) -> Result {
+pub fn varu64_encode_to_writer(mut writer: impl WriteBytes, value: u64) -> Result {
     let mut bytes = [0_u8; 9];
     let length = varu64_encode_to_slice(&mut bytes, value);
     writer.write(&[bytes[0]])?;
@@ -78,7 +78,7 @@ pub fn varu64_decode_from_slice(bytes: &[u8]) -> Result<(u64, u8)> {
 }
 
 /// Decode variable length bytes into `u64`
-pub fn varu64_decode_from_reader<R: ReadBytes>(reader: &mut R) -> Result<u64> {
+pub fn varu64_decode_from_reader(mut reader: impl ReadBytes) -> Result<u64> {
     let (first_byte, decoded_len) = reader.read(1, |buf| {
         Ok((buf[0], varu64_decoded_len(buf[0])))
     })?;

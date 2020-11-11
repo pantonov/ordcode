@@ -1,22 +1,30 @@
-// Fast, binary encoding, platform-neutral serializer for Serde
-
-use crate::{Error,  Result};
+//! Calculates serialized size of object using `serde` traits
+//!
+//! Used for calculating exact size of serialized objects for buffers pre-allocation.
+//! Calculation process is inexpensive, for fixed-size objects it evaluates compile-time
+//! when in release mode.
+//!
+//! ```ignore
+//! let mut size_calc = SizeCalc::<AscendingOrder>::new();
+//! value.serialize(&mut size_calc).unwrap();
+//! let data_size = size_calc.size(); // serialized data length
+//! ```
+use crate::{Error, Result, EncodingParams, LenEncoder};
 use serde::{ser, Serialize};
 use std::mem::size_of;
 
-/// Serialization data format version
-pub const VERSION: u8 = 1;
-
-// Serde binary serializer, like bincode but platform independent
-pub struct SizeCalc {
+/// Serialized object size calculator. Use as `serde::Serializer` on objects.
+pub struct SizeCalc<P> {
     size:   usize,
+    _marker: std::marker::PhantomData<P>,
 }
 
-impl SizeCalc {
-    #[inline]
-    pub fn new() -> Self { Self { size: 0 } }
+impl<P> SizeCalc<P> where P: EncodingParams {
+    #[must_use] #[inline]
+    pub fn new() -> Self { Self { size: 0, _marker: std::marker::PhantomData } }
 
-    #[inline]
+    #[must_use] #[inline]
+    /// Returns calculated size
     pub fn size(&self) -> usize { self.size }
 
     // add serialized size of primitive type
@@ -25,10 +33,17 @@ impl SizeCalc {
 
     // add serialized length of sequence length or discriminant value
     #[inline]
-    fn add_len(&mut self, v: usize) { self.size += Self::len_size(v); }
-
+    fn add_seq_len(&mut self, v: usize) {
+        self.size += P::SeqLenEncoder::calc_size(v);
+    }
     #[inline]
-    fn len_size(v: usize) -> usize { crate::varint::varu64_encoded_len(v as u64) as usize }
+    fn add_discriminant_size(&mut self, v: u32) {
+        self.size += P::DiscriminantEncoder::calc_size(v as usize);
+    }
+}
+
+impl<P> Default for SizeCalc<P> where P: EncodingParams {
+    fn default() -> Self { Self::new() }
 }
 
 macro_rules! serialize_fn {
@@ -41,17 +56,19 @@ macro_rules! serialize_fn {
     }
 }
 
-impl<'a> ser::Serializer for &'a mut SizeCalc {
+impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
+    where P: EncodingParams,
+{
     type Ok = ();
     type Error = Error;
 
-    type SerializeSeq = SerializeCompound<'a>;
-    type SerializeTuple = SerializeCompound<'a>;
-    type SerializeTupleStruct = SerializeCompound<'a>;
-    type SerializeTupleVariant = SerializeCompound<'a>;
-    type SerializeMap = SerializeCompound<'a>;
-    type SerializeStruct = SerializeCompound<'a>;
-    type SerializeStructVariant = SerializeCompound<'a>;
+    type SerializeSeq = SerializeCompound<'a, P>;
+    type SerializeTuple = SerializeCompound<'a, P>;
+    type SerializeTupleStruct = SerializeCompound<'a, P>;
+    type SerializeTupleVariant = SerializeCompound<'a, P>;
+    type SerializeMap = SerializeCompound<'a, P>;
+    type SerializeStruct = SerializeCompound<'a, P>;
+    type SerializeStructVariant = SerializeCompound<'a, P>;
 
     serialize_fn!(serialize_bool, bool);
     serialize_fn!(serialize_u8,   u8);
@@ -75,7 +92,7 @@ impl<'a> ser::Serializer for &'a mut SizeCalc {
     }
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result {
-        self.add_len(v.len());
+        self.add_seq_len(v.len());
         self.size += v.len();
         Ok(())
     }
@@ -101,7 +118,7 @@ impl<'a> ser::Serializer for &'a mut SizeCalc {
     #[inline]
     fn serialize_unit_variant(self, _name: &'static str, variant_index: u32,
                               _variant: &'static str) -> Result {
-        self.add_len(variant_index as usize);
+        self.add_discriminant_size(variant_index);
         Ok(())
     }
     #[inline]
@@ -116,7 +133,7 @@ impl<'a> ser::Serializer for &'a mut SizeCalc {
                                             value: &T) -> Result
         where T: serde::ser::Serialize,
     {
-        self.add_len(variant_index as usize);
+        self.add_discriminant_size(variant_index);
         value.serialize(self)
     }
 
@@ -140,7 +157,7 @@ impl<'a> ser::Serializer for &'a mut SizeCalc {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        self.add_len(variant_index as usize);
+        self.add_discriminant_size(variant_index);
         Ok(SerializeCompound { ser: self })
     }
     #[inline]
@@ -155,30 +172,31 @@ impl<'a> ser::Serializer for &'a mut SizeCalc {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        self.add_len(variant_index as usize);
+        self.add_discriminant_size(variant_index);
         Ok(SerializeCompound { ser: self })
     }
     #[inline]
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         let len = len.ok_or_else(|| errobj!(SerializeSequenceMustHaveLength))?;
-        self.add_len(len);
+        self.add_seq_len(len);
         Ok(SerializeCompound { ser: self })
     }
     #[inline]
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
         let len = len.ok_or_else(|| errobj!(SerializeSequenceMustHaveLength))?;
-        self.add_len(len);
+        self.add_seq_len(len);
         Ok(SerializeCompound { ser: self })
     }
 }
 
-pub struct SerializeCompound<'a> {
-    ser: &'a mut SizeCalc,
+pub struct SerializeCompound<'a, P> {
+    ser: &'a mut SizeCalc<P>,
 }
 
 macro_rules! seq_compound_impl {
     ($tn:ident, $fn:ident) => {
-        impl<'a> serde::ser::$tn for SerializeCompound<'a>
+        impl<'a, P> serde::ser::$tn for SerializeCompound<'a, P>
+            where P: EncodingParams,
         {
             type Ok = ();
             type Error = Error;
@@ -204,7 +222,8 @@ seq_compound_impl!(SerializeTupleVariant, serialize_field);
 
 macro_rules! struct_compound_impl {
     ($tn:ident) => {
-        impl<'a> serde::ser::$tn for SerializeCompound<'a>
+        impl<'a, P> serde::ser::$tn for SerializeCompound<'a, P>
+            where P: EncodingParams,
         {
             type Ok = ();
             type Error = Error;
@@ -237,7 +256,8 @@ macro_rules! serialize_mapitem {
     }
 }
 
-impl<'a> serde::ser::SerializeMap for SerializeCompound<'a>
+impl<'a, P> serde::ser::SerializeMap for SerializeCompound<'a, P>
+    where P: EncodingParams,
 {
     type Ok = ();
     type Error = Error;

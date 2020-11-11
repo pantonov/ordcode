@@ -58,24 +58,16 @@ pub mod primitives;
 pub mod varint;
 pub mod bytes_esc;
 pub mod hint_ser;
+pub mod params;
 
 pub use hint_ser::SizeCalc;
+pub use params::{ EncodingParams, Endianness, AscendingOrder, DescendingOrder,
+                  LenEncoder, VarIntLenEncoder, Order };
 
 //#[cfg(feature="serde")] mod ord_ser;
 //#[cfg(feature="serde")] mod ord_de;
 //#[cfg(feature="serde")] mod bin_ser;
 //#[cfg(feature="serde")] mod bin_de;
-
-/// Specifies lexicographical ordering for serialization. There are no ordering marks in the
-/// serialized data; specification of different ordering for serialization and deserialization
-/// of the same data is UB.
-#[derive(Copy, Clone)]
-pub enum Order {
-    Ascending,
-    Descending,
-    /// For use by other crates. For the purposes of `ordcode`, same as `Ascending`.
-    Unordered
-}
 
 #[cfg(not(any(feature="smallvec", feature="sled")))]
 /// Byte buffer type. May be `Vec<u8>` or `smallvec::SmallVec<[u8;36]>` depending
@@ -222,16 +214,17 @@ impl<'a> BiBuffer<'a> {
     }
     /// Finalize by collapsing extra space in internal buffer, returns data length
     pub fn finalize(&mut self) -> Result<usize> {
-        if self.head != self.tail {
+        if self.head == self.tail {
+            Ok(self.buf.len())
+        } else {
             self.buf.copy_within(self.tail.., self.head);
             let len = self.buf.len() - (self.tail - self.head);
             self.head = self.tail;
             Ok(len)
-        } else {
-            Ok(self.buf.len())
         }
     }
     /// Checks if buffer completely filled (collapsed)
+    #[must_use]
     pub fn is_complete(&self) -> bool { self.head == self.tail }
 
     fn write_head(&mut self, value: &[u8]) -> Result {
