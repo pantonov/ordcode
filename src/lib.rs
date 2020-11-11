@@ -59,6 +59,8 @@ pub mod varint;
 pub mod bytes_esc;
 pub mod hint_ser;
 
+pub use hint_ser::SizeCalc;
+
 //#[cfg(feature="serde")] mod ord_ser;
 //#[cfg(feature="serde")] mod ord_de;
 //#[cfg(feature="serde")] mod bin_ser;
