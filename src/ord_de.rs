@@ -22,7 +22,10 @@ impl<'de, R, P> Deserializer<R, P>
               F: FnOnce(&[u8]) -> Result<V::Value>
     {
         let len = P::SeqLenEncoder::read(&mut self.reader)?;
-        self.reader.read(len, f)
+        //println!("deser read seqlen={}", len);
+        let r = self.reader.read(len, f).unwrap();
+        //println!("deser read complete");
+        Ok(r)
     }
 }
 
@@ -80,6 +83,7 @@ impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
             V: serde::de::Visitor<'de>,
     {
         self.visit_bytebuf::<V,_>(|buf| {
+            //println!("visit bytebuf={:#?}", buf);
             visitor.visit_string(String::from_utf8(Vec::from(buf)).
                 map_err(|_| Error::InvalidUtf8Encoding)?)
         })

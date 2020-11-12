@@ -5,14 +5,14 @@ use crate::{Result, Error};
 /// If you need to read from `&[u8]`, you may use `BytesReader` provided by this crate.
 pub trait ReadBytes {
     /// Peek `n` bytes from head
-    fn peek(&mut self, n: usize) -> Result<&'_[u8]>;
+    fn peek<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R>;
 
     /// Advance buffer head by `n` bytes. `n` should be smaller than remaining buffer size.
     fn advance(&mut self, n: usize);
 
     /// Get `n` bytes from the beginning of buffer, advance by `n` bytes
     fn read<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R> {
-        let r = f(self.peek(n)?)?;
+        let r = self.peek(n, f)?;
         self.advance(n);
         Ok(r)
     }
@@ -20,18 +20,24 @@ pub trait ReadBytes {
     fn remaining_buffer(&mut self) -> &'_[u8];
 
     /// Check if buffer is fully consumed (empty)
-    fn is_empty(&mut self) -> bool { self.remaining_buffer().is_empty() }
+    fn is_complete(&mut self) -> Result {
+        if self.remaining_buffer().is_empty() {
+            Ok(())
+        } else {
+            Err(Error::BufferUnderflow)
+        }
+    }
 }
 
 pub trait TailReadBytes: ReadBytes {
-    fn peek_tail(&mut self, n: usize) -> Result<&'_[u8]>;
+    fn peek_tail<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R>;
 
     /// Advance buffer head by `n` bytes. `n` should be smaller than remaining buffer size.
     fn advance_tail(&mut self, n: usize);
 
     /// Get `n` bytes from the beginning of buffer, advance by `n` bytes
     fn read_tail<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R> {
-        let r = f(self.peek_tail(n)?)?;
+        let r = self.peek_tail(n, f)?;
         self.advance_tail(n);
         Ok(r)
     }
@@ -39,8 +45,8 @@ pub trait TailReadBytes: ReadBytes {
 
 // forwarding for being able to use `&mut ReadBytes` in place of `ReadBytes`
 impl<'a, T> ReadBytes for &'a mut T where T: ReadBytes  {
-    fn peek(&mut self, n: usize) -> Result<&'_[u8]> {
-        (*self).peek(n)
+    fn peek<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R> {
+        (*self).peek(n, f)
     }
     fn advance(&mut self, n: usize) {
         (*self).advance(n)
@@ -50,8 +56,8 @@ impl<'a, T> ReadBytes for &'a mut T where T: ReadBytes  {
 
 // forwarding for being able to use `&mut ReadBytes` in place of `ReadBytes`
 impl<'a, T> TailReadBytes for &'a mut T where T: TailReadBytes  {
-    fn peek_tail(&mut self, n: usize) -> Result<&'_[u8]> {
-        (*self).peek_tail(n)
+    fn peek_tail<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R> {
+        (*self).peek_tail(n, f)
     }
     fn advance_tail(&mut self, n: usize) {
         (*self).advance_tail(n)
@@ -68,31 +74,42 @@ impl<'a> BytesReader<'a> {
     #[must_use] pub fn new(buf: &'a [u8]) -> Self { Self { buf } }
 }
 
-impl<'a> TailReadBytes for BytesReader<'a> {
-    fn peek_tail(&mut self, n: usize) -> Result<&'_[u8]> {
-        if n <= self.buf.len() {
-            Ok(&self.buf[(self.buf.len() - n)..])
-        } else {
-            Err(Error::PrematureEndOfInput)
-        }
-    }
-    fn advance_tail(&mut self, n: usize) {
-        self.buf = &self.buf[..self.buf.len() - n];
-    }
-}
-
 impl <'a> ReadBytes for BytesReader<'a> {
-    fn peek(&mut self, n: usize) -> Result<&'_[u8]> {
+    fn peek<F, R>(&mut self, n: usize, f: F) -> Result<R>
+        where F: FnOnce(&[u8]) -> Result<R>,
+    {
         if n <= self.buf.len() {
-            Ok(&self.buf[..n])
+            let b = &self.buf[..n];
+            //println!("peek = {:#?}", b);
+            f(b)
         } else {
             Err(Error::PrematureEndOfInput)
         }
     }
     fn advance(&mut self, n: usize) {
         self.buf = &self.buf[n..];
+        //println!("after advance {} len={}", n, self.buf.len());
+
     }
     fn remaining_buffer(&mut self) -> &'_[u8] { self.buf }
+}
+
+impl<'a> TailReadBytes for BytesReader<'a> {
+    fn peek_tail<F, R>(&mut self, n: usize, f: F) -> Result<R>
+        where F: FnOnce(&[u8]) -> Result<R>,
+    {
+        if n <= self.buf.len() {
+            let b = &self.buf[(self.buf.len() - n)..];
+            //println!("peek tail = {:#?}", b);
+            f(b)
+        } else {
+            Err(Error::PrematureEndOfInput)
+        }
+    }
+    fn advance_tail(&mut self, n: usize) {
+        self.buf = &self.buf[..self.buf.len() - n];
+        //println!("after advance_tail {} len={}", n, self.buf.len());
+    }
 }
 
 /// Adapter for `BytesReader` for reading from tail if the buffer
@@ -101,8 +118,10 @@ pub struct ReadFromTail<'a, R>(pub &'a mut R) where R: TailReadBytes;
 impl <'a, R> ReadBytes for ReadFromTail<'a, R>
     where R: TailReadBytes,
 {
-    fn peek(&mut self, n: usize) -> Result<&'_[u8]> {
-        self.0.peek_tail(n)
+    fn peek<F, RV>(&mut self, n: usize, f: F) -> Result<RV>
+        where F: FnOnce(&[u8]) -> Result<RV>,
+    {
+        self.0.peek_tail(n, f)
     }
     fn advance(&mut self, n: usize) {
         self.0.advance_tail(n)
@@ -166,7 +185,7 @@ impl<'a> BiBuffer<'a> {
 
 impl<'a> WriteBytes for BiBuffer<'a> {
     fn write(&mut self, value: &[u8]) -> Result {
-        if (self.tail - self.head) < value.len() {
+        if (self.head + value.len()) > self.tail {
             Err(Error::BufferOverflow)
         } else {
             self.buf[self.head..(self.head + value.len())].copy_from_slice(value);
@@ -178,12 +197,13 @@ impl<'a> WriteBytes for BiBuffer<'a> {
 
 impl<'a> TailWriteBytes for BiBuffer<'a> {
     fn write_tail(&mut self, value: &[u8]) -> Result {
-        if (self.tail - self.head) < value.len() {
+        //println!("WRITE TO TAIL: {:#?}", value);
+        if (self.head + value.len()) > self.tail {
             Err(Error::BufferOverflow)
         } else {
             let end_offs = self.tail - value.len();
-            self.buf[end_offs..].copy_from_slice(value);
-            self.tail -= value.len();
+            self.buf[end_offs..self.tail].copy_from_slice(value);
+            self.tail = end_offs;
             Ok(())
         }
     }
@@ -207,4 +227,24 @@ impl<T> WriteBytes for &mut T where T: WriteBytes {
 
 impl<T> TailWriteBytes for &mut T where T: TailWriteBytes {
     fn write_tail(&mut self, buf: &[u8]) -> Result { (*self).write_tail(buf) }
+}
+
+#[test]
+fn test_bibuffer() {
+    let mut byte_buf = vec![0_u8; 7];
+    let mut bib = BiBuffer::new(byte_buf.as_mut_slice());
+    bib.write(b"aa").unwrap();
+    bib.write_tail(b"1").unwrap();
+    bib.write(b"bb").unwrap();
+    bib.write_tail(b"2").unwrap();
+    bib.write(b"d").unwrap();
+    bib.is_complete().unwrap();
+    assert_eq!(&byte_buf, b"aabbd21");
+
+    let mut rb = BytesReader::new(byte_buf.as_slice());
+    assert_eq!(rb.read(3, |b| Ok(b == b"aab")).unwrap(), true);
+    assert_eq!(rb.read_tail(1, |b| Ok(b == b"1")).unwrap(), true);
+    assert_eq!(rb.read_tail(1, |b| Ok(b == b"2")).unwrap(), true);
+    assert_eq!(rb.read(2, |b| Ok(b == b"bd")).unwrap(), true);
+    rb.is_complete().unwrap();
 }

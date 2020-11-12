@@ -147,7 +147,7 @@ pub fn varu64_decode_from_reader(mut reader: impl ReadBytes) -> Result<u64> {
     let (first_byte, decoded_len) = reader.read(1, |buf| {
         Ok((buf[0], varu_decoded_len(buf[0])))
     })?;
-    reader.read(decoded_len as usize, |buf| {
+    reader.read((decoded_len - 1) as usize, |buf| {
         varu64_decode(decoded_len, first_byte,buf)
     })
 }
@@ -158,7 +158,7 @@ pub fn varu32_decode_from_reader(mut reader: impl ReadBytes) -> Result<u32> {
         Ok((buf[0], varu_decoded_len(buf[0])))
     })?;
     if decoded_len <= 5 {
-        reader.read(decoded_len as usize, |buf| {
+        reader.read((decoded_len - 1) as usize, |buf| {
             varu32_decode(decoded_len, first_byte, buf)
         })
     } else {
@@ -183,6 +183,10 @@ impl<P> LengthEncoder for VarIntLenEncoder<P> where P: SerializerParams {
     #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
     fn read(mut reader: impl TailReadBytes) -> Result<usize> {
         if P::USE_TAIL {
+            //let mut rt = ReadFromTail(&mut reader);
+            //rt.peek(1, |b| {
+            //    println!("Read from tail byte: {}", b[0]); Ok(())
+            //})?;
             varu64_decode_from_reader(ReadFromTail(&mut reader)).map(|v| v as usize)
         } else {
             varu64_decode_from_reader(reader).map(|v| v as usize)
@@ -191,6 +195,7 @@ impl<P> LengthEncoder for VarIntLenEncoder<P> where P: SerializerParams {
     #[inline]
     fn write(mut writer: impl TailWriteBytes, value: usize) -> Result {
         if P::USE_TAIL {
+            //println!("Write to tail={}", value);
             varu64_encode_to_writer(WriteToTail(&mut writer), value as u64)
         } else {
             varu64_encode_to_writer(writer, value as u64)
