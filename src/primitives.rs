@@ -15,7 +15,7 @@
 //! ### Parameters
 //! Encoding parameters are passed to methods via impl of `EncodingParams` (usually ZST struct).
 
-use crate::{ReadBytes, WriteBytes, Result, Order, EncodingParams, Endianness};
+use crate::{ReadBytes, WriteBytes, Result, Error, Order, EncodingParams, Endianness};
 use core::convert::TryInto;
 
 /// Serialization data format version
@@ -108,7 +108,7 @@ pub fn serialize_char(writer: impl WriteBytes, v: char, param: impl EncodingPara
 pub fn deserialize_char(reader: impl ReadBytes, param: impl EncodingParams) -> Result<char>
 {
     let ch = deserialize_u32(reader, param)?;
-    core::char::from_u32(ch).ok_or_else(|| errobj!(InvalidUtf8Encoding))
+    core::char::from_u32(ch).ok_or_else(|| Error::InvalidUtf8Encoding)
 }
 
 // Ordered serialization of floats

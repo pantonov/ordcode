@@ -177,13 +177,13 @@ impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
     }
     #[inline]
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
-        let len = len.ok_or_else(|| errobj!(SerializeSequenceMustHaveLength))?;
+        let len = len.ok_or_else(|| Error::SerializeSequenceMustHaveLength)?;
         self.add_seq_len(len);
         Ok(SerializeCompound { ser: self })
     }
     #[inline]
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
-        let len = len.ok_or_else(|| errobj!(SerializeSequenceMustHaveLength))?;
+        let len = len.ok_or_else(|| Error::SerializeSequenceMustHaveLength)?;
         self.add_seq_len(len);
         Ok(SerializeCompound { ser: self })
     }

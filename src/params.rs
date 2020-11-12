@@ -1,4 +1,7 @@
 //! Pre-set serialization configurations
+
+#![allow(clippy::module_name_repetitions)]
+
 use crate::{ varint, Result, ReadBytes, WriteBytes };
 
 /// Specifies lexicographical ordering for serialization. There are no ordering marks in the

@@ -45,10 +45,10 @@
 #![allow(clippy::missing_errors_doc)]
 
 #[cfg(feature="serde")] #[macro_use] extern crate serde;
-#[macro_use] extern crate error_chain;
 
 #[macro_use] mod errors;
-pub use errors::{ Error, ErrorKind, ResultExt };
+#[doc(inline)]
+pub use errors::Error;
 
 /// A convenient Result type
 pub type Result<T = (), E = errors::Error> = core::result::Result<T, E>;

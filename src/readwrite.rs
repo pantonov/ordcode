@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Result, Error};
 
 /// Simple byte reader from buffer
 ///
@@ -47,7 +47,7 @@ impl<'a> BytesReader<'a> {
         if n <= self.buf.len() {
             Ok(&self.buf[..n])
         } else {
-            err!(PrematureEndOfInput)
+            Err(Error::PrematureEndOfInput)
         }
     }
     fn advance_head(&mut self, n: usize) {
@@ -57,7 +57,7 @@ impl<'a> BytesReader<'a> {
         if n <= self.buf.len() {
             Ok(&self.buf[(self.buf.len() - n)..])
         } else {
-            err!(PrematureEndOfInput)
+            Err(Error::PrematureEndOfInput)
         }
     }
     fn advance_tail(&mut self, n: usize) {
@@ -131,7 +131,7 @@ impl<'a> BiBuffer<'a> {
 
     fn write_head(&mut self, value: &[u8]) -> Result {
         if (self.tail - self.head) < value.len() {
-            err!(BufferOverflow)
+            Err(Error::BufferOverflow)
         } else {
             self.buf[self.head..(self.head + value.len())].copy_from_slice(value);
             self.head += value.len();
@@ -140,7 +140,7 @@ impl<'a> BiBuffer<'a> {
     }
     fn write_tail(&mut self, value: &[u8]) -> Result {
         if (self.tail - self.head) < value.len() {
-            err!(BufferOverflow)
+            Err(Error::BufferOverflow)
         } else {
             let end_offs = self.tail - value.len();
             self.buf[end_offs..].copy_from_slice(value);

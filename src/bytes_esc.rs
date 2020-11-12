@@ -5,7 +5,7 @@
 //! `{ 0xF8, 0x01 }` for ascending order, `{ 0x07, 0xFE }` for descending order. Escaped byte
 //!   value `0xF8` is chosen because it does not appear in valid UTF-8, and escaping zero
 //!   is impractical (it is too common)
-use crate::{ReadBytes, WriteBytes, Result, ResultExt, ErrorKind, Order, EncodingParams};
+use crate::{Error,ReadBytes, WriteBytes, Result, Order, EncodingParams};
 
 #[cfg(features="std")]
 use crate::BytesBufExt;
@@ -18,7 +18,7 @@ fn apply_over_esc<R, F>(rb: &mut R, esc: u8, advance: bool, f: &mut F) -> Result
     let r = loop {
         if let Some(pos) = b.iter().position(|v| *v == esc) {
             if pos + 1 >= b.len() {
-                break err!(PrematureEndOfInput)
+                break Err(Error::PrematureEndOfInput)
             }
             if !f(&b[..=pos], b[pos+1])? {
                 b = &b[pos+2..];
@@ -26,7 +26,7 @@ fn apply_over_esc<R, F>(rb: &mut R, esc: u8, advance: bool, f: &mut F) -> Result
             }
             b = &b[pos+2..];
         } else {
-            break err!(PrematureEndOfInput)
+            break Err(Error::PrematureEndOfInput)
         }
     };
     let len = b.len();
@@ -56,7 +56,7 @@ fn unescaped_length(rb: &mut impl ReadBytes, esc: &ByteStrEscapes) -> Result<usi
             len += buf.len() - 1;
             Ok(false)
         } else {
-            err!(InvalidByteSequenceEscape)
+            Err(Error::InvalidByteSequenceEscape)
         }
     }).and(Ok(len))
 }
@@ -101,7 +101,7 @@ fn read_escaped_bytes_asc(mut rb: impl ReadBytes, mut out: impl WriteBytes) -> R
             out.write(&buf[..buf.len() - 1])?;
             Ok(false)
         } else {
-            err!(InvalidByteSequenceEscape)
+            Err(Error::InvalidByteSequenceEscape)
         }
     })
 }
@@ -116,7 +116,7 @@ fn read_escaped_bytes_desc(mut rb: impl ReadBytes, mut out: impl WriteBytes) -> 
             write_complement_bytes(&mut out,&buf[..buf.len() - 1])?;
             Ok(false)
         } else {
-            err!(InvalidByteSequenceEscape)
+            Err(Error::InvalidByteSequenceEscape)
         }
     })
 }
@@ -184,6 +184,6 @@ pub fn deserialize_bytes_noesc_to_vec(mut reader: impl ReadBytes, param: impl En
 pub fn deserialize_bytes_noesc_to_string(reader: impl ReadBytes, param: impl EncodingParams) -> Result<String>
 {
     let bstr = deserialize_bytes_noesc_to_vec(reader, param)?;
-    let s = String::from_utf8(bstr.into()).chain_err(|| ErrorKind::InvalidUtf8Encoding)?;
+    let s = String::from_utf8(bstr).map_err(|_| Error::InvalidUtf8Encoding)?;
     Ok(s)
 }
