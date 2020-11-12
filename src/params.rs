@@ -2,7 +2,7 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-use crate::{ varint, Result, ReadBytes, WriteBytes };
+use crate::{ varint, Result, TailReadBytes, TailWriteBytes };
 
 /// Specifies lexicographical ordering for serialization. There are no ordering marks in the
 /// serialized data; specification of different ordering for serialization and deserialization
@@ -33,15 +33,6 @@ pub trait EncodingParams: Copy {
     /// Endianness for integer values; for encodings which preserve lexicographical order,
     /// should be `Endianness::Big`
     const ENDIANNESS: Endianness;
-
-    // this is to allow access to these associated constants from ZST object
-    #[doc(hidden)]
-    #[inline]
-    fn order(&self) -> Order { Self::ORDER }
-
-    #[doc(hidden)]
-    #[inline]
-    fn endianness(&self) -> Endianness { Self::ENDIANNESS }
 }
 
 pub trait SerializerParams: EncodingParams {
@@ -51,21 +42,22 @@ pub trait SerializerParams: EncodingParams {
     const USE_TAIL: bool;
 
     /// Encoder for sequence lengths
-    type SeqLenEncoder: LenEncoder;
+    type SeqLenEncoder: LengthEncoder<Value=usize>;
 
     /// Encoder for discriminant values
-    type DiscriminantEncoder: LenEncoder;
+    type DiscriminantEncoder: LengthEncoder<Value=u32>;
 }
 
 /// Encoder for array lengths, enum discriminants etc.
-pub trait LenEncoder {
+pub trait LengthEncoder {
+    /// Value type, may be u32, u64 or usize
+    type Value;
+
     /// Calculate serialized size for value
-    fn calc_size(value: usize) -> usize;
-    fn read(reader: impl ReadBytes, params: impl EncodingParams) -> Result<usize>;
-    fn write(writer: impl WriteBytes, params: impl EncodingParams, value: usize) -> Result;
+    fn calc_size(value: Self::Value) -> usize;
+    fn read(reader: impl TailReadBytes) -> Result<Self::Value>;
+    fn write(writer: impl TailWriteBytes, value: Self::Value) -> Result;
 }
-
-
 
 impl<T> EncodingParams for &T where T: EncodingParams {
     const ORDER: Order = T::ORDER;
@@ -79,7 +71,7 @@ impl <T> SerializerParams for &T where T: SerializerParams {
 }
 
 /// Lexicographical order-preserving serialization in ascending order
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct AscendingOrder;
 
 impl EncodingParams for AscendingOrder {
@@ -89,12 +81,12 @@ impl EncodingParams for AscendingOrder {
 
 impl SerializerParams for AscendingOrder {
     const USE_TAIL: bool = true;
-    type SeqLenEncoder = varint::VarIntLenEncoder;
-    type DiscriminantEncoder = varint::VarIntLenEncoder;
+    type SeqLenEncoder = varint::VarIntLenEncoder<Self>;
+    type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }
 
 /// Lexicographical order-preserving serialization in descending order
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct DescendingOrder;
 
 impl EncodingParams for DescendingOrder {
@@ -104,6 +96,6 @@ impl EncodingParams for DescendingOrder {
 
 impl SerializerParams for DescendingOrder {
     const USE_TAIL: bool = true;
-    type SeqLenEncoder = varint::VarIntLenEncoder;
-    type DiscriminantEncoder = varint::VarIntLenEncoder;
+    type SeqLenEncoder = varint::VarIntLenEncoder<Self>;
+    type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }

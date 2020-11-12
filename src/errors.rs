@@ -1,9 +1,9 @@
+
 /// Serialization errors
-#[allow(clippy::manual_non_exhaustive)]
 #[derive(Debug, Copy, Clone)]
 pub enum Error {
     #[doc(hidden)]
-    _Serde, // not used, but need to satisfy serde Error traits
+    SerdeCustomError,  // not used, but need to satisfy serde Error traits
     SerializeSequenceMustHaveLength,
     BufferOverflow,
     BufferUnderflow,
@@ -19,8 +19,9 @@ pub enum Error {
 
 impl Error {
     fn descr(&self) -> &str {
+        #[cfg(feature="std")]
         match self {
-            Error::_Serde => "", // not used
+            Error::SerdeCustomError => "serde custom error", // not used
             Error::SerializeSequenceMustHaveLength => "serialized sequence must have length",
             Error::BufferOverflow => "serialized data buffer overflow",
             Error::BufferUnderflow => "serialized data buffer underflow",
@@ -33,6 +34,7 @@ impl Error {
             Error::InvalidTagEncoding => "invalid encoding for enum tag",
             Error::InvalidVarintEncoding => "invalid varint encoding",
         }
+        #[cfg(not(feature="std"))] ""
     }
 }
 
@@ -46,16 +48,16 @@ impl core::fmt::Display for Error {
 #[cfg(feature="std")]
 impl std::error::Error for Error {}
 
-#[cfg(all(feature="serde", feature="std"))]
-impl serde::ser::Error for Error {
-    fn custom<T: std::fmt::Display>(_msg: T) -> Self {
-        Self::_Serde
+#[cfg(feature="serde")]
+const _: () =  {
+    impl serde::ser::Error for Error {
+        fn custom<T: std::fmt::Display>(_msg: T) -> Self {
+            Self::SerdeCustomError
+        }
     }
-}
-
-#[cfg(all(feature="serde", feature="std"))]
-impl serde::de::Error for Error {
-    fn custom<T: std::fmt::Display>(_msg: T) -> Self {
-        Self::_Serde
+    impl serde::de::Error for Error {
+        fn custom<T: std::fmt::Display>(_msg: T) -> Self {
+            Self::SerdeCustomError
+        }
     }
-}
+};

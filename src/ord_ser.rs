@@ -1,74 +1,55 @@
-//! Calculates serialized size of object using `serde` traits
-//!
-//! Used for calculating exact size of serialized objects for buffers pre-allocation.
-//! Calculation process is inexpensive, for fixed-size objects it evaluates compile-time
-//! when in release mode.
-//!
-//! ```ignore
-//! let mut size_calc = SizeCalc::<AscendingOrder>::new();
-//! value.serialize(&mut size_calc).unwrap();
-//! let data_size = size_calc.size(); // serialized data length
-//! ```
-use crate::{Error, Result, SerializerParams, LengthEncoder};
+// Serde serializer for data format which preserves lexicographical ordering of values
+
+use crate::{Error, TailWriteBytes, Result, SerializerParams, LengthEncoder};
 use serde::{ser, Serialize};
-use core::mem::size_of;
 
-/// Serialized object size calculator. Use as `serde::Serializer` on objects.
-pub struct SizeCalc<P> {
-    size:   usize,
-    _marker: std::marker::PhantomData<P>,
+/// Serialization data format version
+//pub const VERSION: u8 = 1;
+
+// Serde serializer which preserves lexicographical ordering of values
+pub struct Serializer<W, P> {
+    writer: W,
+    params: P,
 }
 
-impl<P> SizeCalc<P> where P: SerializerParams {
-    #[must_use] #[inline]
-    pub fn new() -> Self { Self { size: 0, _marker: std::marker::PhantomData } }
-
-    #[must_use] #[inline]
-    /// Returns calculated size
-    pub fn size(&self) -> usize { self.size }
-
-    // add serialized size of primitive type
-    #[inline]
-    fn add_ty<T>(&mut self) { self.size += size_of::<T>(); }
-
-    // add serialized length of sequence length or discriminant value
-    #[inline]
-    fn add_seq_len(&mut self, v: usize) {
-        self.size += P::SeqLenEncoder::calc_size(v);
+impl<W, P> Serializer<W, P>
+    where W: TailWriteBytes,
+          P: SerializerParams,
+{
+    pub fn new(writer: W, params: P) -> Self {
+        Self { writer, params }
     }
-    #[inline]
-    fn add_discriminant_size(&mut self, v: u32) {
-        self.size += P::DiscriminantEncoder::calc_size(v);
-    }
-}
+    pub fn into_writer(self) -> W { self.writer }
 
-impl<P> Default for SizeCalc<P> where P: SerializerParams {
-    fn default() -> Self { Self::new() }
+    #[inline]
+    fn write_len(&mut self, v: usize) -> Result {
+        P::SeqLenEncoder::write(&mut self.writer, v)
+    }
+    fn write_discr(&mut self, v: u32) -> Result {
+        P::DiscriminantEncoder::write(&mut self.writer, v)
+    }
 }
 
 macro_rules! serialize_fn {
     ($fn:ident, $t:ty) => {
-        #[inline]
-        fn $fn(self, _v: $t) -> Result {
-            self.add_ty::<$t>();
-            Ok(())
-        }
+        fn $fn(self, v: $t) -> Result { crate::primitives::$fn(&mut self.writer, v, self.params) }
     }
 }
 
-impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
-    where P: SerializerParams,
+impl<'a, W, P> ser::Serializer for &'a mut Serializer<W, P>
+    where W: TailWriteBytes,
+          P: SerializerParams,
 {
     type Ok = ();
     type Error = Error;
 
-    type SerializeSeq = SerializeCompound<'a, P>;
-    type SerializeTuple = SerializeCompound<'a, P>;
-    type SerializeTupleStruct = SerializeCompound<'a, P>;
-    type SerializeTupleVariant = SerializeCompound<'a, P>;
-    type SerializeMap = SerializeCompound<'a, P>;
-    type SerializeStruct = SerializeCompound<'a, P>;
-    type SerializeStructVariant = SerializeCompound<'a, P>;
+    type SerializeSeq = SerializeCompoundSeq<'a, W, P>;
+    type SerializeTuple = SerializeCompound<'a, W, P>;
+    type SerializeTupleStruct = SerializeCompound<'a, W, P>;
+    type SerializeTupleVariant = SerializeCompound<'a, W, P>;
+    type SerializeMap = SerializeCompoundSeq<'a, W, P>;
+    type SerializeStruct = SerializeCompound<'a, W, P>;
+    type SerializeStructVariant = SerializeCompound<'a, W, P>;
 
     serialize_fn!(serialize_bool, bool);
     serialize_fn!(serialize_u8,   u8);
@@ -85,71 +66,59 @@ impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
         serialize_fn!(serialize_u128,  u128);
         serialize_fn!(serialize_i128,  i128);
     }
-    serialize_fn!(serialize_char,  char);
-    #[inline]
+    serialize_fn!(serialize_char, char);
+
     fn serialize_str(self, v: &str) -> Result {
         self.serialize_bytes(v.as_ref())
     }
-    #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result {
-        self.add_seq_len(v.len());
-        self.size += v.len();
-        Ok(())
+        self.write_len(v.len())?;
+        crate::primitives::write_bytes(&mut self.writer, v, self.params)
     }
-    #[inline]
     fn serialize_none(self) -> Result {
-        self.add_ty::<u8>();
-        Ok(())
+        self.serialize_u8(0)
     }
-    #[inline]
     fn serialize_some<T>(self, value: &T) -> Result
         where T: ?Sized + Serialize,
     {
-        self.add_ty::<u8>();
+        self.serialize_u8(1)?;
         value.serialize(self)
     }
-    #[inline]
     fn serialize_unit(self) -> Result { Ok(()) }
 
-    #[inline]
     fn serialize_unit_struct(self, _name: &'static str) -> Result {
         self.serialize_unit()
     }
-    #[inline]
     fn serialize_unit_variant(self, _name: &'static str, variant_index: u32,
                               _variant: &'static str) -> Result {
-        self.add_discriminant_size(variant_index);
-        Ok(())
+        self.write_discr(variant_index)
     }
-    #[inline]
     fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result
         where T: ?Sized + Serialize,
     {
         value.serialize(self)
     }
-    #[inline]
     fn serialize_newtype_variant<T: ?Sized>(self, _name: &'static str,
                                             variant_index: u32, _variant: &'static str,
                                             value: &T) -> Result
         where T: serde::ser::Serialize,
     {
-        self.add_discriminant_size(variant_index);
+        self.write_discr(variant_index)?;
         value.serialize(self)
     }
 
-    #[inline]
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        Ok(SerializeCompound { ser: self })
+        Ok(SerializeCompound::new(self))
     }
-    #[inline]
+
     fn serialize_tuple_struct(
         self,
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        Ok(SerializeCompound { ser: self })
+        Ok(SerializeCompound::new(self))
     }
-    #[inline]
+
     fn serialize_tuple_variant(
         self,
         _name: &'static str,
@@ -157,14 +126,12 @@ impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        self.add_discriminant_size(variant_index);
-        Ok(SerializeCompound { ser: self })
+        self.write_discr(variant_index)?;
+        Ok(SerializeCompound::new(self))
     }
-    #[inline]
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        Ok(SerializeCompound { ser: self })
+        Ok(SerializeCompound::new(self))
     }
-    #[inline]
     fn serialize_struct_variant(
         self,
         _name: &'static str,
@@ -172,42 +139,51 @@ impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        self.add_discriminant_size(variant_index);
-        Ok(SerializeCompound { ser: self })
+        self.write_discr(variant_index)?;
+        Ok(SerializeCompound::new(self))
     }
-    #[inline]
+    // map and seq are variable-length sequences, use double encoding
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         let len = len.ok_or_else(|| Error::SerializeSequenceMustHaveLength)?;
-        self.add_seq_len(len);
-        Ok(SerializeCompound { ser: self })
+        SerializeCompoundSeq::new(len, self)
     }
-    #[inline]
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
-        let len = len.ok_or_else(|| Error::SerializeSequenceMustHaveLength)?;
-        self.add_seq_len(len);
-        Ok(SerializeCompound { ser: self })
+        let len = len.ok_or_else (|| Error::SerializeSequenceMustHaveLength)?;
+        SerializeCompoundSeq::new(len, self)
+    }
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    fn collect_str<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
+        where
+            T: core::fmt::Display,
+    {
+        self.serialize_str(&value.to_string())
     }
 }
 
-pub struct SerializeCompound<'a, P> {
-    ser: &'a mut SizeCalc<P>,
+pub struct SerializeCompound<'a, W, P: SerializerParams> {
+    ser: &'a mut Serializer<W, P>,
+}
+
+impl <'a, W, P: SerializerParams> SerializeCompound<'a, W, P> {
+    fn new(ser: &'a mut Serializer<W, P>) -> Self {
+        Self { ser }
+    }
 }
 
 macro_rules! seq_compound_impl {
     ($tn:ident, $fn:ident) => {
-        impl<'a, P> serde::ser::$tn for SerializeCompound<'a, P>
-            where P: SerializerParams,
+        impl<'a, W, P> serde::ser::$tn for SerializeCompound<'a, W, P>
+            where W: TailWriteBytes,
+                  P: SerializerParams,
         {
             type Ok = ();
             type Error = Error;
 
-            #[inline]
             fn $fn<T: ?Sized>(&mut self, value: &T) -> Result
                 where T: serde::ser::Serialize,
             {
                 value.serialize(&mut *self.ser)
             }
-            #[inline]
             fn end(self) -> Result {
                 Ok(())
             }
@@ -222,19 +198,18 @@ seq_compound_impl!(SerializeTupleVariant, serialize_field);
 
 macro_rules! struct_compound_impl {
     ($tn:ident) => {
-        impl<'a, P> serde::ser::$tn for SerializeCompound<'a, P>
-            where P: SerializerParams,
+        impl<'a, W, P> serde::ser::$tn for SerializeCompound<'a, W, P>
+            where W: TailWriteBytes,
+                  P: SerializerParams,
         {
             type Ok = ();
             type Error = Error;
 
-            #[inline]
             fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, value: &T) -> Result
                 where T: serde::ser::Serialize,
             {
                 value.serialize(&mut *self.ser)
             }
-            #[inline]
             fn end(self) -> Result {
                 Ok(())
             }
@@ -245,9 +220,22 @@ macro_rules! struct_compound_impl {
 struct_compound_impl!(SerializeStruct);
 struct_compound_impl!(SerializeStructVariant);
 
-macro_rules! serialize_mapitem {
+pub struct SerializeCompoundSeq<'a, W, P: SerializerParams> {
+    ser: &'a mut Serializer<W, P>,
+}
+
+impl <'a, W, P> SerializeCompoundSeq<'a,  W, P>
+    where W: TailWriteBytes,
+          P: SerializerParams,
+{
+    fn new(len: usize, ser: &'a mut Serializer<W, P>) -> Result<Self> {
+        ser.write_len(len)?;
+        Ok(Self { ser })
+    }
+}
+
+macro_rules! serialize_seqitem {
     ($fn:ident) => {
-        #[inline]
         fn $fn<T: ?Sized>(&mut self, value: &T) -> Result
             where T: serde::ser::Serialize,
         {
@@ -256,14 +244,25 @@ macro_rules! serialize_mapitem {
     }
 }
 
-impl<'a, P> serde::ser::SerializeMap for SerializeCompound<'a, P>
-    where P: SerializerParams,
+impl<'a, W, P> serde::ser::SerializeSeq for SerializeCompoundSeq<'a, W, P>
+    where W: TailWriteBytes,
+          P: SerializerParams,
 {
     type Ok = ();
     type Error = Error;
 
-    serialize_mapitem!(serialize_key);
-    serialize_mapitem!(serialize_value);
-    #[inline]
+    serialize_seqitem!(serialize_element);
+    fn end(self) -> Result { Ok(()) }
+}
+
+impl<'a, W, P> serde::ser::SerializeMap for SerializeCompoundSeq<'a, W, P>
+    where W: TailWriteBytes,
+          P: SerializerParams,
+{
+    type Ok = ();
+    type Error = Error;
+
+    serialize_seqitem!(serialize_key);
+    serialize_seqitem!(serialize_value);
     fn end(self) -> Result { Ok(()) }
 }

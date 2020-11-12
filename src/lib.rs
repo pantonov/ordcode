@@ -66,21 +66,51 @@ mod readwrite;
 pub use hint_ser::SizeCalc;
 
 #[doc(inline)]
-pub use params::{ Order, Endianness, LenEncoder, EncodingParams, SerializerParams,
-                  AscendingOrder, DescendingOrder };
+pub use params::{Order, Endianness, LengthEncoder, EncodingParams, SerializerParams,
+                 AscendingOrder, DescendingOrder };
 
 #[doc(inline)]
-pub use readwrite::{ReadBytes, WriteBytes, ReadFromTail, WriteToTail, BytesReader, BiBuffer };
+pub use readwrite::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes,
+                    ReadFromTail, WriteToTail, BytesReader, BiBuffer};
 
 #[doc(inline)]
 #[cfg(features="std")]
 pub use bytesbuf::{BytesBuf, BytesBufExt };
+use crate::ord_ser::Serializer;
+use crate::ord_de::Deserializer;
 
-//#[cfg(feature="serde")] mod ord_ser;
-//#[cfg(feature="serde")] mod ord_de;
+#[cfg(feature="serde")] mod ord_ser;
+#[cfg(feature="serde")] mod ord_de;
 //#[cfg(feature="serde")] mod bin_ser;
 //#[cfg(feature="serde")] mod bin_de;
 
+pub fn calc_size<T, P>(value: &T, _params: P) -> Result<usize>
+    where T: ?Sized + serde::ser::Serialize,
+          P: SerializerParams,
+{
+    let mut sc = SizeCalc::<P>::new();
+    value.serialize(&mut sc)?;
+    Ok(sc.size())
+}
+
+pub fn ser_to_vec<T>(value: &T, params: impl SerializerParams) -> Result<Vec<u8>>
+    where T: ?Sized + serde::ser::Serialize,
+{
+    let mut byte_buf = vec![0u8; calc_size(value, &params)?];
+    let mut bi_buf = BiBuffer::new(byte_buf.as_mut_slice());
+    let mut ser = Serializer::new(&mut bi_buf, &params);
+    value.serialize(&mut ser)?;
+    bi_buf.is_complete()?;
+    Ok(byte_buf)
+}
+
+pub fn de_from_bytes<T>(input: &[u8], params: impl SerializerParams) -> Result<T>
+    where T: serde::de::DeserializeOwned,
+{
+    let mut reader = BytesReader::new(input);
+    let mut deser = Deserializer::new(&mut reader, params);
+    T::deserialize(&mut deser)
+}
 
 #[cfg(feature="xserde")]
 pub mod ord {

@@ -1,7 +1,7 @@
 //!
 //! Variable length serialization of integers
 //!
-use crate::{ Error, ReadBytes, WriteBytes, Result, LenEncoder, EncodingParams };
+use crate::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes, Result, Error, LengthEncoder, SerializerParams, WriteToTail, ReadFromTail};
 
 // Varint code adaped and modified from the source below:
 // VInt implementation: github.com/iqlusioninc/veriform
@@ -21,7 +21,7 @@ pub fn varu32_encoded_len(value: u32) -> u8 {
 }
 
 
-/// Get the byte length of encoded `u64` value from the first byte
+/// Get the byte length of encoded `u64`  or `u32` value from the first byte
 #[must_use] #[inline]
 pub fn varu_decoded_len(first_byte: u8) -> u8 {
     // truncation can't happen, max value is 8
@@ -167,28 +167,40 @@ pub fn varu32_decode_from_reader(mut reader: impl ReadBytes) -> Result<u32> {
 }
 
 /// Variable-length encoding for array lengths, enum discriminants etc.
-pub struct VarIntLenEncoder;
+pub struct VarIntLenEncoder<P> where P: SerializerParams {
+    _marker: std::marker::PhantomData<P>,
+}
 
 #[cfg(target_pointer_width = "64")]
-impl LenEncoder for VarIntLenEncoder {
+impl<P> LengthEncoder for VarIntLenEncoder<P> where P: SerializerParams {
+    type Value = usize;
+
     #[inline]
-    fn calc_size(value: usize) -> usize {
+    fn calc_size(value: Self::Value) -> usize {
         varu64_encoded_len(value as u64) as usize
     }
     #[inline]
-    fn read(reader: impl ReadBytes, _params: impl EncodingParams) -> Result<usize> {
-        #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
-        varu64_decode_from_reader(reader).map(|v| v as usize)
+    #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
+    fn read(mut reader: impl TailReadBytes) -> Result<usize> {
+        if P::USE_TAIL {
+            varu64_decode_from_reader(ReadFromTail(&mut reader)).map(|v| v as usize)
+        } else {
+            varu64_decode_from_reader(reader).map(|v| v as usize)
+        }
     }
     #[inline]
-    fn write(writer: impl WriteBytes, _params: impl EncodingParams, value: usize) -> Result {
-        varu64_encode_to_writer(writer, value as u64)
+    fn write(mut writer: impl TailWriteBytes, value: usize) -> Result {
+        if P::USE_TAIL {
+            varu64_encode_to_writer(WriteToTail(&mut writer), value as u64)
+        } else {
+            varu64_encode_to_writer(writer, value as u64)
+        }
     }
 }
 
 #[cfg(not(target_pointer_width = "64"))]
 #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
-impl LenEncoder for VarIntLenEncoder {
+impl LengthEncoder for VarIntLenEncoder {
     #[inline]
     fn calc_size(value: usize) -> usize {
         varu32_encoded_len(value as u32) as usize
@@ -200,5 +212,26 @@ impl LenEncoder for VarIntLenEncoder {
     #[inline]
     fn write(writer: impl WriteBytes, _params: impl EncodingParams, value: usize) -> Result {
         varu32_encode_to_writer(writer, value as u32)
+    }
+}
+
+/// Variable-length encoding for enum discriminants
+pub struct VarIntDiscrEncoder;
+
+#[cfg(target_pointer_width = "64")]
+impl LengthEncoder for VarIntDiscrEncoder {
+    type Value = u32;
+
+    #[inline]
+    fn calc_size(value: Self::Value) -> usize {
+        varu32_encoded_len(value) as usize
+    }
+    #[inline]
+    fn read(reader: impl TailReadBytes) -> Result<Self::Value> {
+        varu32_decode_from_reader(reader)
+    }
+    #[inline]
+    fn write(writer: impl TailWriteBytes, value: Self::Value) -> Result {
+        varu32_encode_to_writer(writer, value)
     }
 }
