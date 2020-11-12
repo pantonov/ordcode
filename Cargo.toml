@@ -16,7 +16,8 @@ license = "MIT OR Apache-2.0"
 description = "Serde serializers for prefix-free encoding with lexicographical ordering"
 
 [features]
-default = [ "serde" ]
+default = [ "std", "serde" ]
+std=[]
 
 [dependencies]
 serde = { version = "1.*", optional = true }

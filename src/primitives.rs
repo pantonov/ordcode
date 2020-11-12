@@ -16,12 +16,11 @@
 //! Encoding parameters are passed to methods via impl of `EncodingParams` (usually ZST struct).
 
 use crate::{ReadBytes, WriteBytes, Result, Order, EncodingParams, Endianness};
-use std::convert::TryInto;
+use core::convert::TryInto;
 
 /// Serialization data format version
 pub const VERSION: u8 = 1;
 
-#[macro_export]
 macro_rules! ord_cond {
     ($param:ident, $desc:expr, $asc:expr) => {
         match $param.order() {
@@ -66,7 +65,7 @@ macro_rules! serialize_int {
         }
         #[inline]
         pub fn $dufn(mut reader: impl ReadBytes, param: impl EncodingParams) -> Result<$ut> {
-            const N: usize = std::mem::size_of::<$ut>();
+            const N: usize = core::mem::size_of::<$ut>();
             reader.read(N, |buf| {
                 let rv = from_bytes!(param, $ut, buf);
                 Ok(ord_cond!(param, !rv, rv))
@@ -109,7 +108,7 @@ pub fn serialize_char(writer: impl WriteBytes, v: char, param: impl EncodingPara
 pub fn deserialize_char(reader: impl ReadBytes, param: impl EncodingParams) -> Result<char>
 {
     let ch = deserialize_u32(reader, param)?;
-    std::char::from_u32(ch).ok_or_else(|| errobj!(InvalidUtf8Encoding))
+    core::char::from_u32(ch).ok_or_else(|| errobj!(InvalidUtf8Encoding))
 }
 
 // Ordered serialization of floats
@@ -118,11 +117,11 @@ macro_rules! serialize_float {
         #[inline]
         pub fn $sfn(mut writer: impl WriteBytes, value: $ft, param: impl EncodingParams) -> Result {
             let t = value.to_bits() as $ift;
-            let ov = if matches!(param.endianness(), Endianness::Native) {
-                t
-            } else {
+            let ov = if matches!(param.endianness(), Endianness::Big) {
                 const MSBOFFS: usize = std::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
                 t ^ ((t >> MSBOFFS) | <$ift>::min_value())
+            } else {
+                t
             };
             writer.write(to_bytes!(param, &ord_cond!(param, !ov, ov)))
         }
@@ -130,11 +129,11 @@ macro_rules! serialize_float {
         pub fn $dfn(reader: impl ReadBytes, param: impl EncodingParams) -> Result<$ft> {
             const MSBOFFS: usize = std::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
             let val = $difn(reader, param)? as $ift;
-            if matches!(param.endianness(), Endianness::Native) {
-                Ok(<$ft>::from_bits(val as $uft))
-            } else {
+            if matches!(param.endianness(), Endianness::Big) {
                 let t = ((val ^ <$ift>::min_value()) >> MSBOFFS) | <$ift>::min_value();
                 Ok(<$ft>::from_bits((val ^ t) as $uft))
+            } else {
+                Ok(<$ft>::from_bits(val as $uft))
             }
         }
     }

@@ -1,4 +1,23 @@
-use std::fmt::Display;
+
+enum MErrorKind {
+    Serde(dyn core::fmt::Display + 'static),
+    SerializeSequenceMustHaveLength,
+    BytesReadAllNotImplemented,
+    BufferOverflow,
+    BufferUnderflow,
+    PrematureEndOfInput,
+    InvalidByteSequenceEscape,
+    DeserializeAnyNotSupported,
+    DeserializeIdentifierNotSupported,
+    DeserializeIgnoredAny,
+    InvalidUtf8Encoding,
+    InvalidTagEncoding,
+    InvalidVarintEncoding,
+}
+
+struct Serde(dyn core::fmt::Display + 'static);
+
+
 
 // construct error object
 macro_rules! errobj {
@@ -28,16 +47,16 @@ error_chain! {
     }
 }
 
-#[cfg(feature="serde")]
+#[cfg(all(feature="serde", feature="std"))]
 impl serde::ser::Error for Error {
-    fn custom<T: Display>(msg: T) -> Self {
+    fn custom<T: std::fmt::Display>(msg: T) -> Self {
         ErrorKind::Serde(msg.to_string()).into()
     }
 }
 
-#[cfg(feature="serde")]
+#[cfg(all(feature="serde", feature="std"))]
 impl serde::de::Error for Error {
-    fn custom<T: Display>(msg: T) -> Self {
+    fn custom<T: std::fmt::Display>(msg: T) -> Self {
         ErrorKind::Serde(msg.to_string()).into()
     }
 }

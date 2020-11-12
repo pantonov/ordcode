@@ -1,7 +1,7 @@
 //!
 //! Variable length serialization of integers
 //!
-use crate::{ ReadBytes, WriteBytes, Result };
+use crate::{ ReadBytes, WriteBytes, Result, LenEncoder, EncodingParams };
 
 // Varint code adaped and modified from the source below:
 // VInt implementation: github.com/iqlusioninc/veriform
@@ -85,4 +85,22 @@ pub fn varu64_decode_from_reader(mut reader: impl ReadBytes) -> Result<u64> {
     reader.read(decoded_len as usize, |buf| {
         varu64_decode(decoded_len, first_byte,buf)
     })
+}
+
+/// Variable-length encoding for array lengths, enum discriminants etc.
+pub struct VarIntLenEncoder;
+
+impl LenEncoder for VarIntLenEncoder {
+    #[inline]
+    fn calc_size(value: usize) -> usize {
+        varu64_encoded_len(value as u64) as usize
+    }
+    #[inline]
+    fn read(reader: impl ReadBytes, _params: impl EncodingParams) -> Result<usize> {
+        varu64_decode_from_reader(reader).map(|v| v as usize)
+    }
+    #[inline]
+    fn write(writer: impl WriteBytes, _params: impl EncodingParams, value: usize) -> Result {
+        varu64_encode_to_writer(writer, value as u64)
+    }
 }

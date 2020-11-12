@@ -9,9 +9,9 @@
 //! value.serialize(&mut size_calc).unwrap();
 //! let data_size = size_calc.size(); // serialized data length
 //! ```
-use crate::{Error, Result, EncodingParams, LenEncoder};
+use crate::{Error, Result, SerializerParams, LenEncoder};
 use serde::{ser, Serialize};
-use std::mem::size_of;
+use core::mem::size_of;
 
 /// Serialized object size calculator. Use as `serde::Serializer` on objects.
 pub struct SizeCalc<P> {
@@ -19,7 +19,7 @@ pub struct SizeCalc<P> {
     _marker: std::marker::PhantomData<P>,
 }
 
-impl<P> SizeCalc<P> where P: EncodingParams {
+impl<P> SizeCalc<P> where P: SerializerParams {
     #[must_use] #[inline]
     pub fn new() -> Self { Self { size: 0, _marker: std::marker::PhantomData } }
 
@@ -42,7 +42,7 @@ impl<P> SizeCalc<P> where P: EncodingParams {
     }
 }
 
-impl<P> Default for SizeCalc<P> where P: EncodingParams {
+impl<P> Default for SizeCalc<P> where P: SerializerParams {
     fn default() -> Self { Self::new() }
 }
 
@@ -57,7 +57,7 @@ macro_rules! serialize_fn {
 }
 
 impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
-    where P: EncodingParams,
+    where P: SerializerParams,
 {
     type Ok = ();
     type Error = Error;
@@ -196,7 +196,7 @@ pub struct SerializeCompound<'a, P> {
 macro_rules! seq_compound_impl {
     ($tn:ident, $fn:ident) => {
         impl<'a, P> serde::ser::$tn for SerializeCompound<'a, P>
-            where P: EncodingParams,
+            where P: SerializerParams,
         {
             type Ok = ();
             type Error = Error;
@@ -223,7 +223,7 @@ seq_compound_impl!(SerializeTupleVariant, serialize_field);
 macro_rules! struct_compound_impl {
     ($tn:ident) => {
         impl<'a, P> serde::ser::$tn for SerializeCompound<'a, P>
-            where P: EncodingParams,
+            where P: SerializerParams,
         {
             type Ok = ();
             type Error = Error;
@@ -257,7 +257,7 @@ macro_rules! serialize_mapitem {
 }
 
 impl<'a, P> serde::ser::SerializeMap for SerializeCompound<'a, P>
-    where P: EncodingParams,
+    where P: SerializerParams,
 {
     type Ok = ();
     type Error = Error;

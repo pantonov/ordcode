@@ -1,6 +1,6 @@
 #![allow(clippy::float_cmp)]
 
-use biord::{*, primitives, bytes_esc, BytesBufExt, BiBuffer, ReadFromTail, WriteToTail };
+use biord::{*, primitives, bytes_esc, BiBuffer, ReadFromTail, WriteToTail };
 use std::{f32, f64};
 
 // test values, few normal ones plus corner cases
@@ -199,12 +199,12 @@ fn cmp_esc_bytes_nested(param: impl EncodingParams) {
     bytes_esc::serialize_bytes(&mut s2, &s1, param).unwrap();
     //println!("serialized step1={:#?} step2={:#?}", s1, s2);
     let mut r2 = BytesReader::new(&s2);
-    let dv2 = bytes_esc::deserialize_bytes(&mut r2, param).unwrap();
+    let dv2= bytes_esc::deserialize_bytes_to_vec(&mut r2, param).unwrap();
     //println!("deserialized step2={:#?}", dv2);
     let mut r1 = BytesReader::new(&dv2);
-    let dv1 = bytes_esc::deserialize_bytes(&mut r1, param).unwrap();
+    let dv1 = bytes_esc::deserialize_bytes_to_vec(&mut r1, param).unwrap();
     //println!("deserialized step1={:#?}", dv1);
-    assert_eq!(data, dv1.into_vec8());
+    assert_eq!(data, dv1);
 }
 
 #[test]
