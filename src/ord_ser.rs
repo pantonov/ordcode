@@ -17,7 +17,7 @@ use serde::{ser, Serialize};
 /// is a wrapper around user-provided mutable slice to be used as a write buffer.
 ///
 /// Serializer does not allocate anything: double-ended buffer should be big enough to contain
-/// serialized data. To know required buffer size in advance, please use `CalcSize` with same
+/// serialized data. To know required buffer size in advance, please use `calc_size` with same
 /// `SerializerParams`. Size calculation is cheap, for fixed-size structures it folds to compile-time
 /// constant.
 pub struct Serializer<W, P> {
