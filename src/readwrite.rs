@@ -79,9 +79,7 @@ impl <'a> ReadBytes for BytesReader<'a> {
         where F: FnOnce(&[u8]) -> Result<R>,
     {
         if n <= self.buf.len() {
-            let b = &self.buf[..n];
-            //println!("peek = {:#?}", b);
-            f(b)
+            f(&self.buf[..n])
         } else {
             Err(Error::PrematureEndOfInput)
         }
@@ -99,9 +97,7 @@ impl<'a> TailReadBytes for BytesReader<'a> {
         where F: FnOnce(&[u8]) -> Result<R>,
     {
         if n <= self.buf.len() {
-            let b = &self.buf[(self.buf.len() - n)..];
-            //println!("peek tail = {:#?}", b);
-            f(b)
+            f(&self.buf[(self.buf.len() - n)..])
         } else {
             Err(Error::PrematureEndOfInput)
         }
@@ -197,7 +193,6 @@ impl<'a> WriteBytes for BiBuffer<'a> {
 
 impl<'a> TailWriteBytes for BiBuffer<'a> {
     fn write_tail(&mut self, value: &[u8]) -> Result {
-        //println!("WRITE TO TAIL: {:#?}", value);
         if (self.head + value.len()) > self.tail {
             Err(Error::BufferOverflow)
         } else {

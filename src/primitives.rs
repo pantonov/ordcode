@@ -1,10 +1,13 @@
 //! Ordered serialization/deserialization methods for primitive types and byte arrays.
 //!
+//! If you need to serialize or deserialize a primitive type (e.g. for use as a key), it is better
+//! to use these primitives directly, without using `serde`.
+//!
 //! Serialize methods write results to `WriteBytes` trait impl, deserialize methods read from
 //! `ReadBytes`. Both are defined on top of this crate.
 //!
-//! **Deserializing a value which was serialized for different order is undefined
-//!   behaviour!**
+//! **Deserializing a value which was serialized for different `EncodingParams` is unchecked and
+//! is undefined behaviour!**
 //!
 //! Note that `u128` and `i128` may not be supported on some platforms.
 //!
@@ -141,6 +144,14 @@ macro_rules! serialize_float {
 
 serialize_float!(f32, i32, u32, serialize_f32, deserialize_f32, deserialize_u32);
 serialize_float!(f64, i64, u64, serialize_f64, deserialize_f64, deserialize_u64);
+
+/// Bitwise invert contents of a buffer
+pub fn invert_buffer(buf: &mut [u8])
+{
+    for b in buf {
+        *b = !*b;
+    }
+}
 
 /// Write bytes to writer, inverting them if `params.order() = Order::Descending`
 pub fn write_bytes<P: EncodingParams>(mut writer: impl WriteBytes, v: &[u8], _params: P) -> Result {

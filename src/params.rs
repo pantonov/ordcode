@@ -35,10 +35,10 @@ pub trait EncodingParams: Copy {
     const ENDIANNESS: Endianness;
 }
 
-pub trait SerializerParams: EncodingParams {
+pub trait SerializerParams {
     /// True if sequence lengths and other meta-data be put to the end of the buffer, to
-/// preserve lexicographical order. In this mode, buffer size for serialization should
-/// be big enough to fit all serialized data, or serialization will fail.
+    /// preserve lexicographical order. In this mode, buffer size for serialization should
+    /// be big enough to fit all serialized data, or serialization will fail.
     const USE_TAIL: bool;
 
     /// Encoder for sequence lengths

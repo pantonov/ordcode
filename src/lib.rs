@@ -76,8 +76,8 @@ pub use readwrite::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes,
 #[doc(inline)]
 #[cfg(features="std")]
 pub use bytesbuf::{BytesBuf, BytesBufExt };
-use crate::ord_ser::Serializer;
-use crate::ord_de::Deserializer;
+use crate::ord_ser::OrderedSerializer;
+use crate::ord_de::OrderedDeserializer;
 
 #[cfg(feature="serde")] mod ord_ser;
 #[cfg(feature="serde")] mod ord_de;
@@ -93,24 +93,39 @@ pub fn calc_size<T, P>(value: &T, _params: P) -> Result<usize>
     Ok(sc.size())
 }
 
-pub fn ser_to_vec<T>(value: &T, params: impl SerializerParams) -> Result<Vec<u8>>
+pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
     where T: ?Sized + serde::ser::Serialize,
 {
-    let mut byte_buf = vec![0u8; calc_size(value, &params)?];
+    let mut byte_buf = vec![0u8; calc_size(value, AscendingOrder)?];
     let mut bi_buf = BiBuffer::new(byte_buf.as_mut_slice());
-    let mut ser = Serializer::new(&mut bi_buf, &params);
+    let mut ser = OrderedSerializer::new(&mut bi_buf, AscendingOrder);
     value.serialize(&mut ser)?;
     bi_buf.is_complete()?;
+    if matches!(order, Order::Descending) {
+        primitives::invert_buffer(&mut byte_buf);
+    }
     Ok(byte_buf)
 }
 
-pub fn de_from_bytes<T>(input: &[u8], params: impl SerializerParams) -> Result<T>
+pub fn de_from_bytes_ordered_asc<T>(input: &[u8]) -> Result<T>
     where T: serde::de::DeserializeOwned,
 {
     let mut reader = BytesReader::new(input);
-    let mut deser = Deserializer::new(&mut reader, params);
+    let mut deser = OrderedDeserializer::new(&mut reader, AscendingOrder);
     T::deserialize(&mut deser)
 }
+
+pub fn de_from_bytes_ordered<T>(mut input: &mut [u8], order: Order) -> Result<T>
+    where T: serde::de::DeserializeOwned,
+{
+    if matches!(order, Order::Descending) {
+        primitives::invert_buffer(&mut input);
+    }
+    let mut reader = BytesReader::new(input);
+    let mut deser = OrderedDeserializer::new(&mut reader, AscendingOrder);
+    T::deserialize(&mut deser)
+}
+
 
 #[cfg(feature="xserde")]
 pub mod ord {
@@ -216,10 +231,10 @@ pub mod ord {
     ///
     /// assert_eq!(foo, 258);
     /// ```
-    pub fn new_deserializer_ascending<R>(reader: R) -> crate::ord_de::Deserializer<R, AscendingOrder>
+    pub fn new_deserializer_ascending<R>(reader: R) -> crate::ord_de::OrderedDeserializer<R, AscendingOrder>
         where R: ReadBytes,
     {
-        crate::ord_de::Deserializer::new(reader)
+        crate::ord_de::OrderedDeserializer::new(reader)
     }
 
     /// Create new deserializer instance, with `Descending` ordering.
@@ -235,10 +250,10 @@ pub mod ord {
     ///
     /// assert_eq!(foo, 258);
     /// ```
-    pub fn new_deserializer_descending<R>(reader: R) -> crate::ord_de::Deserializer<R, DescendingOrder>
+    pub fn new_deserializer_descending<R>(reader: R) -> crate::ord_de::OrderedDeserializer<R, DescendingOrder>
         where R: ReadBytes,
     {
-        crate::ord_de::Deserializer::new(reader)
+        crate::ord_de::OrderedDeserializer::new(reader)
     }
 
     /// Create new serializer instance with `Ascending` ordering. Mutable reference to returned value
@@ -253,10 +268,10 @@ pub mod ord {
     ///
     /// assert!(buf[0] == 1 && buf[1] == 2); // 258 serialized as big endian
     /// ```
-    pub fn new_serializer_ascending<W>(writer: W) -> crate::ord_ser::Serializer<W, AscendingOrder>
+    pub fn new_serializer_ascending<W>(writer: W) -> crate::ord_ser::OrderedSerializer<W, AscendingOrder>
         where W: WriteBytes,
     {
-        crate::ord_ser::Serializer::new(writer)
+        crate::ord_ser::OrderedSerializer::new(writer)
     }
 
     /// Create new serializer instance with `Descending` ordering. Mutable reference to returned value
@@ -271,10 +286,10 @@ pub mod ord {
     ///
     /// assert!(buf[0] == 254 && buf[1] == 253); // 258 serialized as descendng order, big endian
     /// ```
-    pub fn new_serializer_descending<W>(writer: W) -> crate::ord_ser::Serializer<W, DescendingOrder>
+    pub fn new_serializer_descending<W>(writer: W) -> crate::ord_ser::OrderedSerializer<W, DescendingOrder>
         where W: WriteBytes,
     {
-        crate::ord_ser::Serializer::new(writer)
+        crate::ord_ser::OrderedSerializer::new(writer)
     }
 }
 

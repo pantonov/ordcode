@@ -1,23 +1,24 @@
 // Serde serializer for data format which preserves lexicographical ordering of values
 
-use crate::{Error, TailWriteBytes, Result, SerializerParams, LengthEncoder};
+use crate::{Error, TailWriteBytes, Result, SerializerParams, LengthEncoder, AscendingOrder };
 use serde::{ser, Serialize};
+use serde::export::PhantomData;
 
 /// Serialization data format version
 //pub const VERSION: u8 = 1;
 
 // Serde serializer which preserves lexicographical ordering of values
-pub struct Serializer<W, P> {
+pub struct OrderedSerializer<W, P> {
     writer: W,
-    params: P,
+    _marker: std::marker::PhantomData<P>,
 }
 
-impl<W, P> Serializer<W, P>
+impl<W, P> OrderedSerializer<W, P>
     where W: TailWriteBytes,
           P: SerializerParams,
 {
-    pub fn new(writer: W, params: P) -> Self {
-        Self { writer, params }
+    pub fn new(writer: W, _params: P) -> Self {
+        Self { writer, _marker: PhantomData }
     }
     pub fn into_writer(self) -> W { self.writer }
 
@@ -32,11 +33,11 @@ impl<W, P> Serializer<W, P>
 
 macro_rules! serialize_fn {
     ($fn:ident, $t:ty) => {
-        fn $fn(self, v: $t) -> Result { crate::primitives::$fn(&mut self.writer, v, self.params) }
+        fn $fn(self, v: $t) -> Result { crate::primitives::$fn(&mut self.writer, v, AscendingOrder) }
     }
 }
 
-impl<'a, W, P> ser::Serializer for &'a mut Serializer<W, P>
+impl<'a, W, P> ser::Serializer for &'a mut OrderedSerializer<W, P>
     where W: TailWriteBytes,
           P: SerializerParams,
 {
@@ -73,7 +74,7 @@ impl<'a, W, P> ser::Serializer for &'a mut Serializer<W, P>
     }
     fn serialize_bytes(self, v: &[u8]) -> Result {
         self.write_len(v.len())?;
-        crate::primitives::write_bytes(&mut self.writer, v, self.params)
+        self.writer.write(&v)
     }
     fn serialize_none(self) -> Result {
         self.serialize_u8(0)
@@ -161,11 +162,11 @@ impl<'a, W, P> ser::Serializer for &'a mut Serializer<W, P>
 }
 
 pub struct SerializeCompound<'a, W, P: SerializerParams> {
-    ser: &'a mut Serializer<W, P>,
+    ser: &'a mut OrderedSerializer<W, P>,
 }
 
 impl <'a, W, P: SerializerParams> SerializeCompound<'a, W, P> {
-    fn new(ser: &'a mut Serializer<W, P>) -> Self {
+    fn new(ser: &'a mut OrderedSerializer<W, P>) -> Self {
         Self { ser }
     }
 }
@@ -221,14 +222,14 @@ struct_compound_impl!(SerializeStruct);
 struct_compound_impl!(SerializeStructVariant);
 
 pub struct SerializeCompoundSeq<'a, W, P: SerializerParams> {
-    ser: &'a mut Serializer<W, P>,
+    ser: &'a mut OrderedSerializer<W, P>,
 }
 
 impl <'a, W, P> SerializeCompoundSeq<'a,  W, P>
     where W: TailWriteBytes,
           P: SerializerParams,
 {
-    fn new(len: usize, ser: &'a mut Serializer<W, P>) -> Result<Self> {
+    fn new(len: usize, ser: &'a mut OrderedSerializer<W, P>) -> Result<Self> {
         ser.write_len(len)?;
         Ok(Self { ser })
     }

@@ -1,19 +1,19 @@
 // Serde deserializer for data format which preserves lexicographical ordering of values
-use crate::{Error, TailReadBytes, Result, SerializerParams, LengthEncoder};
+use crate::{Error, TailReadBytes, Result, SerializerParams, LengthEncoder, AscendingOrder };
 use serde::de::IntoDeserializer;
 
-pub struct Deserializer<R, P> {
+pub struct OrderedDeserializer<R, P> {
     reader: R,
-    params: P,
+    _marker: std::marker::PhantomData<P>,
 }
 
-impl<'de, R, P> Deserializer<R, P>
+impl<'de, R, P> OrderedDeserializer<R, P>
     where R: TailReadBytes,
           P: SerializerParams,
 {
     #[must_use]
-    pub fn new(reader: R, params: P) -> Self {
-        Deserializer { reader, params }
+    pub fn new(reader: R, _params: P) -> Self {
+        OrderedDeserializer { reader, _marker: std::marker::PhantomData }
     }
     pub fn into_reader(self) -> R { self.reader }
 
@@ -22,10 +22,7 @@ impl<'de, R, P> Deserializer<R, P>
               F: FnOnce(&[u8]) -> Result<V::Value>
     {
         let len = P::SeqLenEncoder::read(&mut self.reader)?;
-        //println!("deser read seqlen={}", len);
-        let r = self.reader.read(len, f).unwrap();
-        //println!("deser read complete");
-        Ok(r)
+        self.reader.read(len, f)
     }
 }
 
@@ -35,13 +32,13 @@ macro_rules! impl_nums {
         fn $dser_method<V>(self, visitor: V) -> Result<V::Value>
             where V: serde::de::Visitor<'de>,
         {
-            let value = crate::primitives::$dser_method(&mut self.reader, self.params)?;
+            let value = crate::primitives::$dser_method(&mut self.reader, AscendingOrder)?;
             visitor.$visitor_method(value)
         }
     }
 }
 
-impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
+impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut OrderedDeserializer<R, P>
     where
         R: TailReadBytes,
         P: SerializerParams,
@@ -76,14 +73,15 @@ impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
         where
             V: serde::de::Visitor<'de>,
     {
-        self.deserialize_bytes(visitor)
+        self.visit_bytebuf::<V,_>(|buf| {
+            visitor.visit_str(std::str::from_utf8(buf).map_err(|_| Error::InvalidUtf8Encoding)?)
+        })
     }
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value>
         where
             V: serde::de::Visitor<'de>,
     {
         self.visit_bytebuf::<V,_>(|buf| {
-            //println!("visit bytebuf={:#?}", buf);
             visitor.visit_string(String::from_utf8(Vec::from(buf)).
                 map_err(|_| Error::InvalidUtf8Encoding)?)
         })
@@ -106,7 +104,7 @@ impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
         where
             V: serde::de::Visitor<'de>,
     {
-        let value = crate::primitives::deserialize_u8(&mut self.reader, self.params)?;
+        let value = crate::primitives::deserialize_u8(&mut self.reader, AscendingOrder)?;
         match value {
             0 => visitor.visit_none(),
             1 => visitor.visit_some(&mut *self),
@@ -182,7 +180,7 @@ impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
         where
             V: serde::de::Visitor<'de>,
     {
-        impl<'a, 'de: 'a, R, P> serde::de::EnumAccess<'de> for &'a mut Deserializer<R, P>
+        impl<'a, 'de: 'a, R, P> serde::de::EnumAccess<'de> for &'a mut OrderedDeserializer<R, P>
             where
                 R: TailReadBytes,
                 P: SerializerParams,
@@ -220,7 +218,7 @@ impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
 }
 
 struct SeqAccess<'a, R: TailReadBytes, P: SerializerParams> {
-    deserializer: &'a mut Deserializer<R, P>,
+    deserializer: &'a mut OrderedDeserializer<R, P>,
     len: usize,
 }
 
@@ -245,7 +243,7 @@ impl<'a, 'de: 'a, R: TailReadBytes, P: SerializerParams> serde::de::SeqAccess<'d
 }
 
 struct MapAccess<'a, R: TailReadBytes, P: SerializerParams> {
-    deserializer: &'a mut Deserializer<R, P>,
+    deserializer: &'a mut OrderedDeserializer<R, P>,
     len: usize,
 }
 impl<'a, 'de: 'a, R: TailReadBytes, P: SerializerParams> serde::de::MapAccess<'de> for MapAccess<'a, R, P>
@@ -275,7 +273,7 @@ impl<'a, 'de: 'a, R: TailReadBytes, P: SerializerParams> serde::de::MapAccess<'d
     }
 }
 
-impl<'a, 'de: 'a, R, P> serde::de::VariantAccess<'de> for &'a mut Deserializer<R, P>
+impl<'a, 'de: 'a, R, P> serde::de::VariantAccess<'de> for &'a mut OrderedDeserializer<R, P>
     where R: TailReadBytes,
           P: SerializerParams,
 {
