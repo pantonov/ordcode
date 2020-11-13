@@ -121,11 +121,11 @@ fn decode_trailing_zeroes() {
 #[test]
 fn with_buffer() {
     let mut buf = vec![0_u8; 10];
-    let mut bib = BiBuffer::new(&mut buf);
+    let mut bib = DeBytesWriter::new(&mut buf);
     varu64_encode_to_writer(&mut bib, 11).unwrap();
     varu64_encode_to_writer(WriteToTail(&mut bib), 12).unwrap();
-    println!("encoded={:#?}", &buf);
-    let mut r = BytesReader::new(&buf);
+    //println!("encoded={:#?}", &buf);
+    let mut r = DeBytesReader::new(&buf);
     assert_eq!(varu64_decode_from_reader(ReadFromTail(&mut r)).unwrap(), 12);
     assert_eq!(varu64_decode_from_reader(&mut r).unwrap(), 11);
 }

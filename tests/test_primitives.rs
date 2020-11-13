@@ -1,6 +1,6 @@
 #![allow(clippy::float_cmp)]
 
-use biord::{*, primitives, bytes_esc, BiBuffer, ReadFromTail, WriteToTail };
+use biord::{*, params::*, primitives, bytes_esc  };
 use std::{f32, f64};
 
 // test values, few normal ones plus corner cases
@@ -36,11 +36,11 @@ macro_rules! test_ser {
         fn $sfn() {
             for val in $tvs {
                 let buf = &mut vec![0_u8; 128];
-                let mut bb  = BiBuffer::new(buf);
+                let mut bb  = DeBytesWriter::new(buf);
                 primitives::$sfn(&mut bb, *val, AscendingOrder).unwrap();
                 primitives::$sfn(WriteToTail(&mut bb), *val, DescendingOrder).unwrap();
                 let nl = bb.finalize().unwrap();
-                let mut r = BytesReader::new(&buf[..nl]);
+                let mut r = DeBytesReader::new(&buf[..nl]);
                 assert_eq!(primitives::$dfn(&mut r, AscendingOrder).unwrap(), *val);
                 assert_eq!(primitives::$dfn(ReadFromTail(&mut r), DescendingOrder).unwrap(), *val);
             }
@@ -175,7 +175,7 @@ fn test_esc_enclen_asc() {
     let v = vec![0,0,0xF8,3,1,0,0xFF,0xF8,0xFE,1,2,7,0,1,0xFE];
     let mut s = vec![];
     bytes_esc::serialize_bytes(&mut s, v.as_slice(), AscendingOrder).unwrap();
-    let mut r = BytesReader::new(&s);
+    let mut r = DeBytesReader::new(&s);
     let len = bytes_esc::bytes_length(&mut r, AscendingOrder).unwrap();
     assert!(v.len() == len);
 }
@@ -185,7 +185,7 @@ fn test_esc_enclen_desc() {
     let v = vec![0,0,0xF8,3,1,0,7,0xFF,0xF8,0xFE,1,2,7,0,1,0xFE];
     let mut s = vec![];
     bytes_esc::serialize_bytes(&mut s, v.as_slice(), DescendingOrder).unwrap();
-    let mut r = BytesReader::new(&s);
+    let mut r = DeBytesReader::new(&s);
     let len = bytes_esc::bytes_length(&mut r, DescendingOrder).unwrap();
     assert!(v.len() == len);
 }
@@ -198,10 +198,10 @@ fn cmp_esc_bytes_nested(param: impl EncodingParams) {
     bytes_esc::serialize_bytes(&mut s1, data.as_slice(), param).unwrap();
     bytes_esc::serialize_bytes(&mut s2, &s1, param).unwrap();
     //println!("serialized step1={:#?} step2={:#?}", s1, s2);
-    let mut r2 = BytesReader::new(&s2);
+    let mut r2 = DeBytesReader::new(&s2);
     let dv2= bytes_esc::deserialize_bytes_to_vec(&mut r2, param).unwrap();
     //println!("deserialized step2={:#?}", dv2);
-    let mut r1 = BytesReader::new(&dv2);
+    let mut r1 = DeBytesReader::new(&dv2);
     let dv1 = bytes_esc::deserialize_bytes_to_vec(&mut r1, param).unwrap();
     //println!("deserialized step1={:#?}", dv1);
     assert_eq!(data, dv1);

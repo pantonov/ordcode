@@ -18,7 +18,7 @@
 //! ### Parameters
 //! Encoding parameters are passed to methods via impl of `EncodingParams` (usually ZST struct).
 
-use crate::{ReadBytes, WriteBytes, Result, Error, Order, EncodingParams, Endianness};
+use crate::{Result, Error, buf::{ReadBytes, WriteBytes}, params::{EncodingParams, Order, Endianness}};
 use core::convert::TryInto;
 
 /// Serialization data format version
@@ -154,6 +154,8 @@ pub fn invert_buffer(buf: &mut [u8])
 }
 
 /// Write bytes to writer, inverting them if `params.order() = Order::Descending`
+///
+/// For simple byte buffers, `invert_buffer` method is much faster.
 pub fn write_bytes<P: EncodingParams>(mut writer: impl WriteBytes, v: &[u8], _params: P) -> Result {
     ord_cond!(P, {
         for b in v {

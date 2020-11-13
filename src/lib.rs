@@ -3,40 +3,32 @@
 //!
 //! It is intended for encoding keys and values in key-value databases.
 //!
-//! Serialized data format has the following properties:
-//! * encodings in both ascending and descending lexicographical orders are supported
-//! * concatenation of encoded values preserves ordering. Therefore, serializing `struct` yields
-//!   composite key
-//! * encoded data format is NOT self-descriptive and relies on correct sequence
-//! * encoding of the primitive types (ints, floats) has the same size as original type
-//! * byte arrays and strings encoded with prefix-free escaping, strings use UTF-8
-//! * non-byte variable-length sequences use double encoding: first, they are encoded into the
-//!   temporary byte buffer, then this buffer is encoded again with prefix-free encoding
-//! * encoding is always big-endian, serialized data is safe to move between platforms with different
-//!   endianness.
+//! *Features:*
 //!
-//! This crate also provides `bin` module, which contains fast serializer and deserializer similar
-//! to [bincode](https://github.com/servo/bincode), but portable between platforms with
-//! different endianness. It also uses a more compact encoding: indexes and lengths are
-//! encoded as varints instead of u32/u64.
+//! * encoding in both ascending and descending lexicographical orderings are supported
+//! * encoding puts lengths of variable-size sequences to the end of serialized data,
+//!   so resulting encoding is prefix-free and friendly to lexicographical ordering
+//! * zero allocations, supports `#[no_std]` environments
+//! * method to cheaply get exact size of serialized data without doing actual serialization,
+//!   for effective buffer management
+//! * space-efficient varint encoding for sequence lengths and discriminants
+//! * easily customizable (endianness, encoding of primitive types etc.), with useful pre-sets
+//! * reader/writer traits for double-ended buffers, so you can implement your own or use
+//!   implementations provided by the crate
 //!
-//! ### Cargo.toml features
-//! Feature `serde` is on by default. If you need only primitives, and do not want `serde`
-//! dependency, you can opt out.
+//! ### Cargo.toml features and dependencies
 //!
-//! Optional feature `smallvec` replaces `Vec<u8>` with `SmallVec<[u8;36]>` as default byte buffer.
+//! * `serde` (on by default): include `serde` serializer and deserializer.
+//!    If you need only primitives, you can opt out.
+//! * `std` (on by default): opt out for `#[no-std]` use, you will lose some utility methods
+//!   which use `Vec`
 //!
 //! ### Stability guarantees
-//! The underlying encoding format is simple and unlikely to change. As a safeguard, modules
-//! `primitives`, `ord` and `bin` provide `VERSION` constant.
+//! The underlying encoding format is simple and unlikely to change.
+//! As a safeguard, `Serializer` implements `FormatVersion` trait for all cparameter pre-sets.
 //!
-//! ### Other
-//! Encoding and decoding speed is supposed to be in the same league as
-//! [bincode](https://github.com/servo/bincode), but a bit slower because of fixed endianness,
-//! varints and prefix-free encoding for sequences.
-//!
-//! Serializing with descending lexicographical order is particularly useful for key-value storages like
-//! _rocksdb_, where iteration in reverse key order is expensive.
+//! Note: serializing with descending lexicographical order is particularly useful for key-value
+//! databases like _rocksdb_, where reverse iteration is slower than forward iteration.
 
 //#![doc(html_root_url = "https://docs.rs/ordcode")]
 #![crate_name = "biord"]
@@ -57,38 +49,51 @@ pub type Result<T = (), E = errors::Error> = core::result::Result<T, E>;
 pub mod varint;
 pub mod bytes_esc;
 
-mod hint_ser;
-mod params;
-mod bytesbuf;
-mod readwrite;
+mod size_calc;
+pub mod params;
+pub mod buf;
 
 #[doc(inline)]
-pub use hint_ser::SizeCalc;
+pub use params::Order;
 
 #[doc(inline)]
-pub use params::{Order, Endianness, LengthEncoder, EncodingParams, SerializerParams,
-                 AscendingOrder, DescendingOrder };
+pub use crate::ord_ser::Serializer;
+pub use crate::ord_de::Deserializer;
 
-#[doc(inline)]
-pub use readwrite::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes,
-                    ReadFromTail, WriteToTail, BytesReader, BiBuffer};
-
-#[doc(inline)]
-#[cfg(features="std")]
-pub use bytesbuf::{BytesBuf, BytesBufExt };
-use crate::ord_ser::OrderedSerializer;
-use crate::ord_de::OrderedDeserializer;
+pub use buf::{DeBytesReader, DeBytesWriter, ReadFromTail, WriteToTail };
 
 #[cfg(feature="serde")] mod ord_ser;
 #[cfg(feature="serde")] mod ord_de;
 //#[cfg(feature="serde")] mod bin_ser;
 //#[cfg(feature="serde")] mod bin_de;
 
+/// Current version of data encoding format for `Serializer` parametrized with some of `SerializerParams`.
+pub trait FormatVersion<P: params::SerializerParams> {
+    const VERSION: u32;
+}
+
+/// Calculate exact size of serialized data for a `serde::Serialize` value.
+///
+/// Useful for calculating exact size of serialized objects for buffer allocations.
+/// Calculation process is inexpensive, for fixed-size objects it evaluates to compile-time
+/// constant, or a few `len()` method calls for variable-size objects.
+///
+/// ```
+/// # use biord::*;
+/// # use serde::ser::Serialize;
+///
+/// #[derive(serde_derive::Serialize)]
+/// struct Foo(u32, String);
+/// let foo = Foo(1, "abc".to_string());
+///
+/// let data_size = calc_size(&foo, params::AscendingOrder).unwrap();
+/// assert_eq!(data_size, 8);
+/// ```
 pub fn calc_size<T, P>(value: &T, _params: P) -> Result<usize>
     where T: ?Sized + serde::ser::Serialize,
-          P: SerializerParams,
+          P: params::SerializerParams,
 {
-    let mut sc = SizeCalc::<P>::new();
+    let mut sc = size_calc::SizeCalc::<P>::new();
     value.serialize(&mut sc)?;
     Ok(sc.size())
 }
@@ -96,9 +101,9 @@ pub fn calc_size<T, P>(value: &T, _params: P) -> Result<usize>
 pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
     where T: ?Sized + serde::ser::Serialize,
 {
-    let mut byte_buf = vec![0u8; calc_size(value, AscendingOrder)?];
-    let mut bi_buf = BiBuffer::new(byte_buf.as_mut_slice());
-    let mut ser = OrderedSerializer::new(&mut bi_buf, AscendingOrder);
+    let mut byte_buf = vec![0u8; calc_size(value, params::AscendingOrder)?];
+    let mut bi_buf = DeBytesWriter::new(byte_buf.as_mut_slice());
+    let mut ser = Serializer::new(&mut bi_buf, params::AscendingOrder);
     value.serialize(&mut ser)?;
     bi_buf.is_complete()?;
     if matches!(order, Order::Descending) {
@@ -110,8 +115,8 @@ pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
 pub fn de_from_bytes_ordered_asc<T>(input: &[u8]) -> Result<T>
     where T: serde::de::DeserializeOwned,
 {
-    let mut reader = BytesReader::new(input);
-    let mut deser = OrderedDeserializer::new(&mut reader, AscendingOrder);
+    let mut reader = DeBytesReader::new(input);
+    let mut deser = Deserializer::new(&mut reader, params::AscendingOrder);
     T::deserialize(&mut deser)
 }
 
@@ -121,8 +126,8 @@ pub fn de_from_bytes_ordered<T>(mut input: &mut [u8], order: Order) -> Result<T>
     if matches!(order, Order::Descending) {
         primitives::invert_buffer(&mut input);
     }
-    let mut reader = BytesReader::new(input);
-    let mut deser = OrderedDeserializer::new(&mut reader, AscendingOrder);
+    let mut reader = DeBytesReader::new(input);
+    let mut deser = Deserializer::new(&mut reader, params::AscendingOrder);
     T::deserialize(&mut deser)
 }
 
@@ -148,7 +153,7 @@ pub mod ord {
         const ORDER: Order = Order::Descending;
     }
 
-    use crate::{Result, Order, ReadBytes, WriteBytes, BytesBuf, BytesReader };
+    use crate::{Result, Order, ReadBytes, WriteBytes, BytesBuf, DeBytesReader};
 
     /// Serialize `value` into `writer`
     ///
@@ -214,7 +219,7 @@ pub mod ord {
     pub fn from_bytes<T>(input: &[u8], order: Order) -> Result<T>
         where T: serde::de::DeserializeOwned,
     {
-        from_bytes_reader(&mut BytesReader::new(input), order)
+        from_bytes_reader(&mut DeBytesReader::new(input), order)
     }
     pub use crate::ord_ser::VERSION;
 
@@ -231,10 +236,10 @@ pub mod ord {
     ///
     /// assert_eq!(foo, 258);
     /// ```
-    pub fn new_deserializer_ascending<R>(reader: R) -> crate::ord_de::OrderedDeserializer<R, AscendingOrder>
+    pub fn new_deserializer_ascending<R>(reader: R) -> crate::ord_de::Deserializer<R, AscendingOrder>
         where R: ReadBytes,
     {
-        crate::ord_de::OrderedDeserializer::new(reader)
+        crate::ord_de::Deserializer::new(reader)
     }
 
     /// Create new deserializer instance, with `Descending` ordering.
@@ -250,10 +255,10 @@ pub mod ord {
     ///
     /// assert_eq!(foo, 258);
     /// ```
-    pub fn new_deserializer_descending<R>(reader: R) -> crate::ord_de::OrderedDeserializer<R, DescendingOrder>
+    pub fn new_deserializer_descending<R>(reader: R) -> crate::ord_de::Deserializer<R, DescendingOrder>
         where R: ReadBytes,
     {
-        crate::ord_de::OrderedDeserializer::new(reader)
+        crate::ord_de::Deserializer::new(reader)
     }
 
     /// Create new serializer instance with `Ascending` ordering. Mutable reference to returned value
@@ -268,10 +273,10 @@ pub mod ord {
     ///
     /// assert!(buf[0] == 1 && buf[1] == 2); // 258 serialized as big endian
     /// ```
-    pub fn new_serializer_ascending<W>(writer: W) -> crate::ord_ser::OrderedSerializer<W, AscendingOrder>
+    pub fn new_serializer_ascending<W>(writer: W) -> crate::ord_ser::Serializer<W, AscendingOrder>
         where W: WriteBytes,
     {
-        crate::ord_ser::OrderedSerializer::new(writer)
+        crate::ord_ser::Serializer::new(writer)
     }
 
     /// Create new serializer instance with `Descending` ordering. Mutable reference to returned value
@@ -286,10 +291,10 @@ pub mod ord {
     ///
     /// assert!(buf[0] == 254 && buf[1] == 253); // 258 serialized as descendng order, big endian
     /// ```
-    pub fn new_serializer_descending<W>(writer: W) -> crate::ord_ser::OrderedSerializer<W, DescendingOrder>
+    pub fn new_serializer_descending<W>(writer: W) -> crate::ord_ser::Serializer<W, DescendingOrder>
         where W: WriteBytes,
     {
-        crate::ord_ser::OrderedSerializer::new(writer)
+        crate::ord_ser::Serializer::new(writer)
     }
 }
 
@@ -297,7 +302,7 @@ pub mod ord {
 pub mod bin {
     //! Methods for fast binary serialization and deserialization. Ordering parameter is ignored.
 
-    use crate::{Result, WriteBytes, BytesBuf, BytesReader, ReadBytes};
+    use crate::{Result, WriteBytes, BytesBuf, DeBytesReader, ReadBytes};
 
     /// Serialize `value` into `writer`
     ///
@@ -356,7 +361,7 @@ pub mod bin {
     pub fn from_bytes<T>(input: &[u8]) -> Result<T>
         where T: serde::de::DeserializeOwned,
     {
-        from_bytes_reader(&mut BytesReader::new(input))
+        from_bytes_reader(&mut DeBytesReader::new(input))
     }
 
     /// Create new deserializer instance. Mutable reference to returned value

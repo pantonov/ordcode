@@ -1,5 +1,5 @@
 
-/// Serialization errors
+/// Serialization and deserialization errors
 #[derive(Debug, Copy, Clone)]
 pub enum Error {
     #[doc(hidden)]

@@ -1,7 +1,8 @@
 //!
-//! Variable length serialization of integers
+//! Fast variable length serialization of integers
 //!
-use crate::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes, Result, Error, LengthEncoder, SerializerParams, WriteToTail, ReadFromTail};
+use crate::{buf::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes, WriteToTail, ReadFromTail},
+            params::LengthEncoder, Result, Error};
 
 // Varint code adaped and modified from the source below:
 // VInt implementation: github.com/iqlusioninc/veriform
@@ -167,12 +168,10 @@ pub fn varu32_decode_from_reader(mut reader: impl ReadBytes) -> Result<u32> {
 }
 
 /// Variable-length encoding for array lengths, enum discriminants etc.
-pub struct VarIntLenEncoder<P> where P: SerializerParams {
-    _marker: std::marker::PhantomData<P>,
-}
+pub struct VarIntLenEncoder;
 
 #[cfg(target_pointer_width = "64")]
-impl<P> LengthEncoder for VarIntLenEncoder<P> where P: SerializerParams {
+impl LengthEncoder for VarIntLenEncoder {
     type Value = usize;
 
     #[inline]
@@ -182,24 +181,11 @@ impl<P> LengthEncoder for VarIntLenEncoder<P> where P: SerializerParams {
     #[inline]
     #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
     fn read(mut reader: impl TailReadBytes) -> Result<usize> {
-        if P::USE_TAIL {
-            //let mut rt = ReadFromTail(&mut reader);
-            //rt.peek(1, |b| {
-            //    println!("Read from tail byte: {}", b[0]); Ok(())
-            //})?;
-            varu64_decode_from_reader(ReadFromTail(&mut reader)).map(|v| v as usize)
-        } else {
-            varu64_decode_from_reader(reader).map(|v| v as usize)
-        }
+        varu64_decode_from_reader(ReadFromTail(&mut reader)).map(|v| v as usize)
     }
     #[inline]
     fn write(mut writer: impl TailWriteBytes, value: usize) -> Result {
-        if P::USE_TAIL {
-            //println!("Write to tail={}", value);
-            varu64_encode_to_writer(WriteToTail(&mut writer), value as u64)
-        } else {
-            varu64_encode_to_writer(writer, value as u64)
-        }
+        varu64_encode_to_writer(WriteToTail(&mut writer), value as u64)
     }
 }
 
@@ -223,7 +209,6 @@ impl LengthEncoder for VarIntLenEncoder {
 /// Variable-length encoding for enum discriminants
 pub struct VarIntDiscrEncoder;
 
-#[cfg(target_pointer_width = "64")]
 impl LengthEncoder for VarIntDiscrEncoder {
     type Value = u32;
 

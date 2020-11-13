@@ -1,11 +1,11 @@
-//! Byte sequences encoding and decoding with escaping
+//! Prefix-free encoding and decoding of byte sequences, with escaping
 //!
 //! Byte value `0xF8` is escaped as `{ 0xF8, 0xFF }` for ascending order,
 //! `{ 0x07, 0x00 }` for descending order. Sequence is terminated by
 //! `{ 0xF8, 0x01 }` for ascending order, `{ 0x07, 0xFE }` for descending order. Escaped byte
 //!   value `0xF8` is chosen because it does not appear in valid UTF-8, and escaping zero
 //!   is impractical (it is too common)
-use crate::{Error,ReadBytes, WriteBytes, Result, Order, EncodingParams};
+use crate::{Error, buf::{ReadBytes, WriteBytes}, Result, Order, params::EncodingParams};
 
 #[cfg(features="std")]
 use crate::BytesBufExt;

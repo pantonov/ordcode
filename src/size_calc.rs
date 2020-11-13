@@ -1,15 +1,4 @@
-//! Calculates serialized size of object using `serde` traits
-//!
-//! Used for calculating exact size of serialized objects for buffers pre-allocation.
-//! Calculation process is inexpensive, for fixed-size objects it evaluates compile-time
-//! when in release mode.
-//!
-//! ```ignore
-//! let mut size_calc = SizeCalc::<AscendingOrder>::new();
-//! value.serialize(&mut size_calc).unwrap();
-//! let data_size = size_calc.size(); // serialized data length
-//! ```
-use crate::{Error, Result, SerializerParams, LengthEncoder};
+use crate::{Error, Result, params::{SerializerParams, LengthEncoder}};
 use serde::{ser, Serialize};
 use core::mem::size_of;
 

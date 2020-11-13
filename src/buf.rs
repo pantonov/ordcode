@@ -1,3 +1,5 @@
+//! Types and traits for working with serialization and deserialization buffers
+//!
 use crate::{Result, Error};
 
 /// Simple byte reader from buffer
@@ -64,17 +66,18 @@ impl<'a, T> TailReadBytes for &'a mut T where T: TailReadBytes  {
     }
 }
 
-/// Implementation of `BiReadBytes` from byte slice
-pub struct BytesReader<'a> {
+/// Adapter type which implements double-ended read buffer over byte slice
+/// and implements `ReadBytes`, `TailReadBytes` traits.
+pub struct DeBytesReader<'a> {
     buf: &'a [u8],
 }
 
-impl<'a> BytesReader<'a> {
+impl<'a> DeBytesReader<'a> {
     /// Constructs reader from provided byte slice
     #[must_use] pub fn new(buf: &'a [u8]) -> Self { Self { buf } }
 }
 
-impl <'a> ReadBytes for BytesReader<'a> {
+impl <'a> ReadBytes for DeBytesReader<'a> {
     fn peek<F, R>(&mut self, n: usize, f: F) -> Result<R>
         where F: FnOnce(&[u8]) -> Result<R>,
     {
@@ -92,7 +95,7 @@ impl <'a> ReadBytes for BytesReader<'a> {
     fn remaining_buffer(&mut self) -> &'_[u8] { self.buf }
 }
 
-impl<'a> TailReadBytes for BytesReader<'a> {
+impl<'a> TailReadBytes for DeBytesReader<'a> {
     fn peek_tail<F, R>(&mut self, n: usize, f: F) -> Result<R>
         where F: FnOnce(&[u8]) -> Result<R>,
     {
@@ -108,7 +111,42 @@ impl<'a> TailReadBytes for BytesReader<'a> {
     }
 }
 
-/// Adapter for `BytesReader` for reading from tail if the buffer
+/// Adapter type which implements double-ended interface for single-ended
+/// byte buffer, that is, reads from the head and tail behave as reads from the head.
+///
+/// With this adapter, you can force `Deserializer` to read all data linearly.
+pub struct NoTailBytesReader<'a>(DeBytesReader<'a>);
+
+impl<'a> NoTailBytesReader<'a> {
+    /// Constructs reader from provided byte slice
+    #[must_use] pub fn new(buf: &'a [u8]) -> Self { Self(DeBytesReader::new(buf)) }
+}
+
+impl <'a> ReadBytes for NoTailBytesReader<'a> {
+    fn peek<F, R>(&mut self, n: usize, f: F) -> Result<R>
+        where F: FnOnce(&[u8]) -> Result<R>,
+    {
+        self.0.peek(n, f)
+    }
+    fn advance(&mut self, n: usize) {
+        self.0.advance(n)
+    }
+    fn remaining_buffer(&mut self) -> &'_[u8] { self.0.remaining_buffer() }
+}
+
+impl<'a> TailReadBytes for NoTailBytesReader<'a> {
+    fn peek_tail<F, R>(&mut self, n: usize, f: F) -> Result<R>
+        where F: FnOnce(&[u8]) -> Result<R>,
+    {
+        self.0.peek(n, f)
+    }
+    fn advance_tail(&mut self, n: usize) {
+        self.0.advance(n)
+    }
+}
+
+/// Adapter which implements `ReadBytes` for reading from the end of the buffer
+/// which implements `TailReadBytes` trait (such as `BytesReader`).
 pub struct ReadFromTail<'a, R>(pub &'a mut R) where R: TailReadBytes;
 
 impl <'a, R> ReadBytes for ReadFromTail<'a, R>
@@ -126,7 +164,7 @@ impl <'a, R> ReadBytes for ReadFromTail<'a, R>
 }
 
 #[cfg(feature="std")]
-impl std::io::Read for BytesReader<'_> {
+impl std::io::Read for DeBytesReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.buf.read(buf)
     }
@@ -144,20 +182,22 @@ pub trait TailWriteBytes: WriteBytes {
     fn write_tail(&mut self, value: &[u8]) -> Result;
 }
 
-/// Bipartite byte buffer
-pub struct BiBuffer<'a> {
+/// Adapter type which implements double-ended write byte buffer over mutable byte slice
+pub struct DeBytesWriter<'a> {
     buf: &'a mut [u8],
     head: usize,
     tail: usize,
 }
 
-impl<'a> BiBuffer<'a> {
+impl<'a> DeBytesWriter<'a> {
     /// Use provided byte slice as buffer
     pub fn new(buf: &'a mut [u8]) -> Self {
         let tail = buf.len();
         Self { buf, head: 0, tail }
     }
-    /// Finalize by collapsing extra space in internal buffer, returns data length
+    /// Finalize by collapsing extra space in internal buffer
+    ///
+    /// Returns data length, which is smaller or equal to the original buffer size.
     pub fn finalize(&mut self) -> Result<usize> {
         if self.head == self.tail {
             Ok(self.buf.len())
@@ -168,7 +208,7 @@ impl<'a> BiBuffer<'a> {
             Ok(len)
         }
     }
-    /// Checks if buffer completely filled (collapsed)
+    /// Checks if buffer completely filled
     #[must_use]
     pub fn is_complete(&self) -> Result {
         if self.head == self.tail {
@@ -179,7 +219,7 @@ impl<'a> BiBuffer<'a> {
     }
 }
 
-impl<'a> WriteBytes for BiBuffer<'a> {
+impl<'a> WriteBytes for DeBytesWriter<'a> {
     fn write(&mut self, value: &[u8]) -> Result {
         if (self.head + value.len()) > self.tail {
             Err(Error::BufferOverflow)
@@ -191,7 +231,7 @@ impl<'a> WriteBytes for BiBuffer<'a> {
     }
 }
 
-impl<'a> TailWriteBytes for BiBuffer<'a> {
+impl<'a> TailWriteBytes for DeBytesWriter<'a> {
     fn write_tail(&mut self, value: &[u8]) -> Result {
         if (self.head + value.len()) > self.tail {
             Err(Error::BufferOverflow)
@@ -204,7 +244,8 @@ impl<'a> TailWriteBytes for BiBuffer<'a> {
     }
 }
 
-/// Adapter for writing to the tail of the buffer
+/// Adapter which implements `WriteBytes` for writing to the end of double-ended
+/// write buffer which implements `TailWriteBytes` trait (such as `DeWriteBuffer`).
 pub struct WriteToTail<'a, W>(pub &'a mut W) where W: TailWriteBytes;
 
 impl<'a, W> WriteBytes for WriteToTail<'a, W>
@@ -224,10 +265,29 @@ impl<T> TailWriteBytes for &mut T where T: TailWriteBytes {
     fn write_tail(&mut self, buf: &[u8]) -> Result { (*self).write_tail(buf) }
 }
 
+/// Pushes data to the vector
+impl WriteBytes for Vec<u8> {
+    fn write(&mut self, buf: &[u8]) -> Result {
+        self.extend_from_slice(buf);
+        Ok(())
+    }
+}
+
+/// Pushes data to the vector, same as `write()`
+///
+/// This means that `Serializer` can write to `Vec<u8>` buffer directly and grow it as needed,
+/// however in this case lexicographical ordering property will not be preserved.
+impl TailWriteBytes for Vec<u8> {
+    fn write_tail(&mut self, buf: &[u8]) -> Result {
+        self.extend_from_slice(buf);
+        Ok(())
+    }
+}
+
 #[test]
-fn test_bibuffer() {
+fn test_debuffer() {
     let mut byte_buf = vec![0_u8; 7];
-    let mut bib = BiBuffer::new(byte_buf.as_mut_slice());
+    let mut bib = DeBytesWriter::new(byte_buf.as_mut_slice());
     bib.write(b"aa").unwrap();
     bib.write_tail(b"1").unwrap();
     bib.write(b"bb").unwrap();
@@ -235,8 +295,7 @@ fn test_bibuffer() {
     bib.write(b"d").unwrap();
     bib.is_complete().unwrap();
     assert_eq!(&byte_buf, b"aabbd21");
-
-    let mut rb = BytesReader::new(byte_buf.as_slice());
+    let mut rb = DeBytesReader::new(byte_buf.as_slice());
     assert_eq!(rb.read(3, |b| Ok(b == b"aab")).unwrap(), true);
     assert_eq!(rb.read_tail(1, |b| Ok(b == b"1")).unwrap(), true);
     assert_eq!(rb.read_tail(1, |b| Ok(b == b"2")).unwrap(), true);

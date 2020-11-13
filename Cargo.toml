@@ -1,6 +1,6 @@
 [package]
 name = "biord"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["Paul Antonov, <paul.antonov@gmail.com>"]
 exclude = [".gitignore", ".idea", ".travis.yml"]
 edition = "2018"

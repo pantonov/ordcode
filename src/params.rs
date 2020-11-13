@@ -1,12 +1,13 @@
-//! Pre-set serialization configurations
-
+//! Serialization parameters traits and types
+//!
 #![allow(clippy::module_name_repetitions)]
 
-use crate::{ varint, Result, TailReadBytes, TailWriteBytes };
+use crate::{varint, Result, buf::{TailReadBytes, TailWriteBytes}};
 
-/// Specifies lexicographical ordering for serialization. There are no ordering marks in the
-/// serialized data; specification of different ordering for serialization and deserialization
-/// of the same data is UB.
+/// Lexicographical ordering for serialization
+///
+/// Note that there are no ordering marks in the serialized data; specification of different ordering
+/// for serialization and deserialization of the same data is UB.
 #[derive(Copy, Clone)]
 pub enum Order {
     Ascending,
@@ -15,7 +16,7 @@ pub enum Order {
     Unordered
 }
 
-/// Endianness representation for serialized integers
+/// Endianness representation for serialized integers.
 #[derive(Copy, Clone)]
 pub enum Endianness {
     Little,
@@ -23,24 +24,22 @@ pub enum Endianness {
     Native,
 }
 
-/// Trait which collects encoding params for serializers: lexicographical order,
-/// endianness for integer values, encoding of sequence lengths and discriminants,
-/// use of tail-buffer encoding
+/// Encoding parameters for primitive types serialization: lexicographical order and endianness.
 pub trait EncodingParams: Copy {
-    /// Lexicographical ordering of values
+    /// Serialization ordering of primitive types
+    ///
+    /// Note that you should not specify `Order::Descending` when parameterizing `OrderedSerializer`:
+    /// descending ordering for composite types is achieved differently, by negating resulting
+    /// byte buffer (this is also faster).
     const ORDER: Order;
 
-    /// Endianness for integer values; for encodings which preserve lexicographical order,
-    /// should be `Endianness::Big`
+    /// Endianness for encoding integer and float values; for encodings which preserve
+    /// lexicographical ordering, should be `Endianness::Big`
     const ENDIANNESS: Endianness;
 }
 
-pub trait SerializerParams {
-    /// True if sequence lengths and other meta-data be put to the end of the buffer, to
-    /// preserve lexicographical order. In this mode, buffer size for serialization should
-    /// be big enough to fit all serialized data, or serialization will fail.
-    const USE_TAIL: bool;
-
+/// Parameters for implementations of `serde` serializer and deserializer
+pub trait SerializerParams: EncodingParams {
     /// Encoder for sequence lengths
     type SeqLenEncoder: LengthEncoder<Value=usize>;
 
@@ -65,7 +64,6 @@ impl<T> EncodingParams for &T where T: EncodingParams {
 }
 
 impl <T> SerializerParams for &T where T: SerializerParams {
-    const USE_TAIL: bool = T::USE_TAIL;
     type SeqLenEncoder = T::SeqLenEncoder;
     type DiscriminantEncoder = T::DiscriminantEncoder;
 }
@@ -80,22 +78,17 @@ impl EncodingParams for AscendingOrder {
 }
 
 impl SerializerParams for AscendingOrder {
-    const USE_TAIL: bool = true;
-    type SeqLenEncoder = varint::VarIntLenEncoder<Self>;
+    type SeqLenEncoder = varint::VarIntLenEncoder;
     type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }
 
 /// Lexicographical order-preserving serialization in descending order
+///
+/// Note that only `EncodingParams` trait is implemented, not `SerializerParams`: this is deliberate.
 #[derive(Copy, Clone, Default)]
 pub struct DescendingOrder;
 
 impl EncodingParams for DescendingOrder {
     const ORDER: Order = Order::Descending;
     const ENDIANNESS: Endianness = Endianness::Big;
-}
-
-impl SerializerParams for DescendingOrder {
-    const USE_TAIL: bool = true;
-    type SeqLenEncoder = varint::VarIntLenEncoder<Self>;
-    type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }
