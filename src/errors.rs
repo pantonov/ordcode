@@ -39,7 +39,7 @@ impl Error {
 }
 
 impl core::fmt::Display for Error {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.descr())?;
         Ok(())
     }
@@ -51,12 +51,12 @@ impl std::error::Error for Error {}
 #[cfg(feature="serde")]
 const _: () =  {
     impl serde::ser::Error for Error {
-        fn custom<T: std::fmt::Display>(_msg: T) -> Self {
+        fn custom<T: core::fmt::Display>(_msg: T) -> Self {
             Self::SerdeCustomError
         }
     }
     impl serde::de::Error for Error {
-        fn custom<T: std::fmt::Display>(_msg: T) -> Self {
+        fn custom<T: core::fmt::Display>(_msg: T) -> Self {
             Self::SerdeCustomError
         }
     }

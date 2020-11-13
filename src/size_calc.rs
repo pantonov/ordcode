@@ -5,12 +5,12 @@ use core::mem::size_of;
 /// Serialized object size calculator. Use as `serde::Serializer` on objects.
 pub struct SizeCalc<P> {
     size:   usize,
-    _marker: std::marker::PhantomData<P>,
+    _marker: core::marker::PhantomData<P>,
 }
 
 impl<P> SizeCalc<P> where P: SerializerParams {
     #[must_use] #[inline]
-    pub fn new() -> Self { Self { size: 0, _marker: std::marker::PhantomData } }
+    pub fn new() -> Self { Self { size: 0, _marker: core::marker::PhantomData } }
 
     #[must_use] #[inline]
     /// Returns calculated size

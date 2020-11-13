@@ -68,7 +68,7 @@ impl <T> SerializerParams for &T where T: SerializerParams {
     type DiscriminantEncoder = T::DiscriminantEncoder;
 }
 
-/// Lexicographical order-preserving serialization in ascending order
+/// Serializer parameters for lexicographical order-preserving serialization in ascending order
 #[derive(Copy, Clone, Default)]
 pub struct AscendingOrder;
 
@@ -78,17 +78,52 @@ impl EncodingParams for AscendingOrder {
 }
 
 impl SerializerParams for AscendingOrder {
-    type SeqLenEncoder = varint::VarIntLenEncoder;
+    type SeqLenEncoder = varint::VarIntTailLenEncoder;
     type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }
 
-/// Lexicographical order-preserving serialization in descending order
+/// Encoding paramerers for lexicographical order-preserving serialization in descending order
 ///
-/// Note that only `EncodingParams` trait is implemented, not `SerializerParams`: this is deliberate.
+/// Note: deliberately implements only `EncodingParams` trait, not `SerializerParams`, so it can
+/// be used with serialization primitives, but not with `Serializer` or `Deserializer`.
 #[derive(Copy, Clone, Default)]
 pub struct DescendingOrder;
 
 impl EncodingParams for DescendingOrder {
     const ORDER: Order = Order::Descending;
     const ENDIANNESS: Endianness = Endianness::Big;
+}
+
+/// Serializer parameters for portable binary format, which does not need double-ended buffer.
+/// However, it still requires implementation of `TailBytesRead`, `TailBytesWrite` traits
+/// for reader and writer, which should behave same as `BytesRead`, `BytesWrite`.
+#[derive(Copy, Clone, Default)]
+pub struct PortableBinary;
+
+impl EncodingParams for PortableBinary {
+    const ORDER: Order = Order::Ascending;
+    const ENDIANNESS: Endianness = Endianness::Big;
+}
+
+impl SerializerParams for PortableBinary {
+    type SeqLenEncoder = varint::VarIntLenEncoder;
+    type DiscriminantEncoder = varint::VarIntDiscrEncoder;
+}
+
+/// Serializer parameters for platform-specific binary format, which does not need double-ended buffer.
+/// This is probably the fastest option, but serialized data will not be portable.
+///
+/// It still requires implementation of `TailBytesRead`, `TailBytesWrite` traits for reader
+/// and writer, which should behave same as `BytesRead`, `BytesWrite`.
+#[derive(Copy, Clone, Default)]
+pub struct NativeBinary;
+
+impl EncodingParams for NativeBinary {
+    const ORDER: Order = Order::Unordered;
+    const ENDIANNESS: Endianness = Endianness::Native;
+}
+
+impl SerializerParams for NativeBinary {
+    type SeqLenEncoder = varint::VarIntLenEncoder;
+    type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }

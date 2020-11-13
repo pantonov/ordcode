@@ -1,3 +1,8 @@
+use crate::{Error, FormatVersion, buf::TailWriteBytes, Result,
+            params::{SerializerParams, LengthEncoder }};
+use crate::params::{AscendingOrder, PortableBinary, NativeBinary};
+use serde::{ser, Serialize};
+
 /// _Serde_ serializer for binary data format which may preserve lexicographical ordering of values
 ///
 /// The data format is customizable: you can choose lexicographical ordering for encoding
@@ -15,13 +20,6 @@
 /// serialized data. To know required buffer size in advance, please use `CalcSize` with same
 /// `SerializerParams`. Size calculation is cheap, for fixed-size structures it folds to compile-time
 /// constant.
-
-use crate::{Error, FormatVersion, buf::TailWriteBytes, Result,
-            params::{SerializerParams, LengthEncoder }};
-use serde::{ser, Serialize};
-use crate::params::AscendingOrder;
-
-// Serde serializer which preserves lexicographical ordering of values
 pub struct Serializer<W, P> {
     writer: W,
     params: P,
@@ -46,6 +44,14 @@ impl<W, P> Serializer<W, P>
 }
 
 impl<W> FormatVersion<AscendingOrder> for Serializer<W, AscendingOrder>  {
+    const VERSION: u32 = 1;
+}
+
+impl<W> FormatVersion<PortableBinary> for Serializer<W, PortableBinary>  {
+    const VERSION: u32 = 1;
+}
+
+impl<W> FormatVersion<NativeBinary> for Serializer<W, NativeBinary>  {
     const VERSION: u32 = 1;
 }
 

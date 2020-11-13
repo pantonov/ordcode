@@ -67,7 +67,8 @@ impl<'a, T> TailReadBytes for &'a mut T where T: TailReadBytes  {
 }
 
 /// Adapter type which implements double-ended read buffer over byte slice
-/// and implements `ReadBytes`, `TailReadBytes` traits.
+///
+/// Implements `ReadBytes`, `TailReadBytes` traits and intended to be used as input to `Deserializer`.
 pub struct DeBytesReader<'a> {
     buf: &'a [u8],
 }
@@ -111,42 +112,14 @@ impl<'a> TailReadBytes for DeBytesReader<'a> {
     }
 }
 
-/// Adapter type which implements double-ended interface for single-ended
-/// byte buffer, that is, reads from the head and tail behave as reads from the head.
-///
-/// With this adapter, you can force `Deserializer` to read all data linearly.
-pub struct NoTailBytesReader<'a>(DeBytesReader<'a>);
-
-impl<'a> NoTailBytesReader<'a> {
-    /// Constructs reader from provided byte slice
-    #[must_use] pub fn new(buf: &'a [u8]) -> Self { Self(DeBytesReader::new(buf)) }
-}
-
-impl <'a> ReadBytes for NoTailBytesReader<'a> {
-    fn peek<F, R>(&mut self, n: usize, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R>,
-    {
-        self.0.peek(n, f)
-    }
-    fn advance(&mut self, n: usize) {
-        self.0.advance(n)
-    }
-    fn remaining_buffer(&mut self) -> &'_[u8] { self.0.remaining_buffer() }
-}
-
-impl<'a> TailReadBytes for NoTailBytesReader<'a> {
-    fn peek_tail<F, R>(&mut self, n: usize, f: F) -> Result<R>
-        where F: FnOnce(&[u8]) -> Result<R>,
-    {
-        self.0.peek(n, f)
-    }
-    fn advance_tail(&mut self, n: usize) {
-        self.0.advance(n)
-    }
-}
-
-/// Adapter which implements `ReadBytes` for reading from the end of the buffer
-/// which implements `TailReadBytes` trait (such as `BytesReader`).
+/// Adapter which implements `ReadBytes` for reading from the end of the buffer.
+/// ```
+/// # use biord::{ DeBytesReader, ReadFromTail, params, primitives::deserialize_u16 };
+/// let buf = vec![11, 22, 33, 44, 55, 0, 1];
+/// let mut reader = DeBytesReader::new(&buf);
+/// assert_eq!(deserialize_u16(ReadFromTail(&mut reader), params::AscendingOrder).unwrap(), 1);
+/// ```
+/// (which in turn should implement `TailReadBytes` trait (such as `BytesReader`).
 pub struct ReadFromTail<'a, R>(pub &'a mut R) where R: TailReadBytes;
 
 impl <'a, R> ReadBytes for ReadFromTail<'a, R>
@@ -183,6 +156,8 @@ pub trait TailWriteBytes: WriteBytes {
 }
 
 /// Adapter type which implements double-ended write byte buffer over mutable byte slice
+///
+/// `DeBytesWriter` implements `WriteBytes` and `TailWriteBytes`, and can be used with `Serializer`.
 pub struct DeBytesWriter<'a> {
     buf: &'a mut [u8],
     head: usize,
@@ -245,7 +220,14 @@ impl<'a> TailWriteBytes for DeBytesWriter<'a> {
 }
 
 /// Adapter which implements `WriteBytes` for writing to the end of double-ended
-/// write buffer which implements `TailWriteBytes` trait (such as `DeWriteBuffer`).
+/// write buffer which implements `TailWriteBytes` trait (such as `DeBytesWriter`).
+/// ```
+/// # use biord::{ DeBytesWriter, WriteToTail, params, primitives::serialize_u16 };
+/// let mut buf = vec![0_u8; 100];
+/// let mut writer = DeBytesWriter::new(&mut buf);
+/// serialize_u16(WriteToTail(&mut writer), 1, params::AscendingOrder).unwrap();
+/// assert_eq!(&buf[98..100], &[0, 1]);
+/// ```
 pub struct WriteToTail<'a, W>(pub &'a mut W) where W: TailWriteBytes;
 
 impl<'a, W> WriteBytes for WriteToTail<'a, W>
@@ -266,6 +248,7 @@ impl<T> TailWriteBytes for &mut T where T: TailWriteBytes {
 }
 
 /// Pushes data to the vector
+#[cfg(feature="std")]
 impl WriteBytes for Vec<u8> {
     fn write(&mut self, buf: &[u8]) -> Result {
         self.extend_from_slice(buf);
@@ -277,6 +260,7 @@ impl WriteBytes for Vec<u8> {
 ///
 /// This means that `Serializer` can write to `Vec<u8>` buffer directly and grow it as needed,
 /// however in this case lexicographical ordering property will not be preserved.
+#[cfg(feature="std")]
 impl TailWriteBytes for Vec<u8> {
     fn write_tail(&mut self, buf: &[u8]) -> Result {
         self.extend_from_slice(buf);
@@ -284,6 +268,7 @@ impl TailWriteBytes for Vec<u8> {
     }
 }
 
+#[cfg(feature="std")]
 #[test]
 fn test_debuffer() {
     let mut byte_buf = vec![0_u8; 7];

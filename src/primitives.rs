@@ -121,7 +121,7 @@ macro_rules! serialize_float {
         pub fn $sfn<P: EncodingParams>(mut writer: impl WriteBytes, value: $ft, _param: P) -> Result {
             let t = value.to_bits() as $ift;
             let ov = if matches!(P::ENDIANNESS, Endianness::Big) {
-                const MSBOFFS: usize = std::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
+                const MSBOFFS: usize = core::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
                 t ^ ((t >> MSBOFFS) | <$ift>::min_value())
             } else {
                 t
@@ -130,7 +130,7 @@ macro_rules! serialize_float {
         }
         #[inline]
         pub fn $dfn<P: EncodingParams>(reader: impl ReadBytes, param: P) -> Result<$ft> {
-            const MSBOFFS: usize = std::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
+            const MSBOFFS: usize = core::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
             let val = $difn(reader, param)? as $ift;
             if matches!(P::ENDIANNESS, Endianness::Big) {
                 let t = ((val ^ <$ift>::min_value()) >> MSBOFFS) | <$ift>::min_value();

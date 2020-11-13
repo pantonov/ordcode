@@ -6,7 +6,7 @@ use crate::{buf::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes, WriteToT
 
 // Varint code adaped and modified from the source below:
 // VInt implementation: github.com/iqlusioninc/veriform
-/// Get the length of an encoded u64 for the given value in bytes
+/// Get the length of an varint-encoded u64 for the given value in bytes
 #[must_use] #[inline]
 pub fn varu64_encoded_len(value: u64) -> u8 {
     // indexing const array is twice as fast as 'match' in release mode
@@ -15,6 +15,7 @@ pub fn varu64_encoded_len(value: u64) -> u8 {
     LENGTHS[value.leading_zeros() as usize]
 }
 
+/// Get the length of an varint-encoded u32 for the given value in bytes
 #[must_use] #[inline]
 pub fn varu32_encoded_len(value: u32) -> u8 {
     const LENGTHS: [u8; 33] = [ 5,5,5,5,4,4,4,4,4,4,4,3,3,3,3,3,3,3,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1 ];
@@ -22,7 +23,7 @@ pub fn varu32_encoded_len(value: u32) -> u8 {
 }
 
 
-/// Get the byte length of encoded `u64`  or `u32` value from the first byte
+/// Get the byte length of varint-encoded `u64`  or `u32` value from the first byte
 #[must_use] #[inline]
 pub fn varu_decoded_len(first_byte: u8) -> u8 {
     // truncation can't happen, max value is 8
@@ -30,7 +31,7 @@ pub fn varu_decoded_len(first_byte: u8) -> u8 {
     (first_byte.trailing_zeros() + 1) as u8
 }
 
-/// Encode `u64` as variable length bytes
+/// Encode `u64` as variable length integer
 pub fn varu64_encode_to_writer(mut writer: impl WriteBytes, value: u64) -> Result {
     let mut bytes = [0_u8; 9];
     let length = varu64_encode_to_slice(&mut bytes, value);
@@ -38,7 +39,7 @@ pub fn varu64_encode_to_writer(mut writer: impl WriteBytes, value: u64) -> Resul
     writer.write(&bytes[1..length as usize])
 }
 
-/// Encode `u32` as variable length bytes
+/// Encode `u32` as variable length integer
 pub fn varu32_encode_to_writer(mut writer: impl WriteBytes, value: u32) -> Result {
     let mut bytes = [0_u8; 5];
     let length = varu32_encode_to_slice(&mut bytes, value);
@@ -46,7 +47,7 @@ pub fn varu32_encode_to_writer(mut writer: impl WriteBytes, value: u32) -> Resul
     writer.write(&bytes[1..length as usize])
 }
 
-/// Encode `u64` as variable length bytes into fixed size buffer, returns encoded bytes length
+/// Encode `u64` as variable length integer into fixed size buffer, returns encoded bytes length
 pub fn varu64_encode_to_slice(bytes: &mut[u8; 9], value: u64) -> u8 {
     let length = varu64_encoded_len(value);
     // 9-byte special case, length byte is zero in this case
@@ -59,7 +60,7 @@ pub fn varu64_encode_to_slice(bytes: &mut[u8; 9], value: u64) -> u8 {
     length
 }
 
-/// Encode `u64` as variable length bytes into fixed size buffer, returns encoded bytes length
+/// Encode `u32` as variable length integer into fixed size buffer, returns encoded bytes length
 pub fn varu32_encode_to_slice(bytes: &mut[u8; 5], value: u32) -> u8 {
     let length = varu32_encoded_len(value);
     // 5-byte special case, length byte is zero in this case
@@ -121,7 +122,7 @@ fn varu32_decode(encoded_length: u8, first_byte: u8, bytes: &[u8]) -> Result<u32
     Ok(result)
 }
 
-/// Decode variable length bytes into `u64`, returns value and encoded length
+/// Decode variable length integer bytes into `u64`, returns value and encoded length
 pub fn varu64_decode_from_slice(bytes: &[u8]) -> Result<(u64, u8)> {
     if bytes.is_empty() {
         return Err(Error::PrematureEndOfInput);
@@ -130,7 +131,7 @@ pub fn varu64_decode_from_slice(bytes: &[u8]) -> Result<(u64, u8)> {
     Ok((varu64_decode(decoded_len, bytes[0], &bytes[1..])?, decoded_len))
 }
 
-/// Decode variable length bytes into `u32`, returns value and encoded length
+/// Decode variable length integer bytes into `u32`, returns value and encoded length
 pub fn varu32_decode_from_slice(bytes: &[u8]) -> Result<(u32, u8)> {
     if bytes.is_empty() {
         return Err(Error::PrematureEndOfInput);
@@ -143,7 +144,7 @@ pub fn varu32_decode_from_slice(bytes: &[u8]) -> Result<(u32, u8)> {
     }
 }
 
-/// Decode variable length bytes into `u64`
+/// Decode variable length integer bytes into `u64`
 pub fn varu64_decode_from_reader(mut reader: impl ReadBytes) -> Result<u64> {
     let (first_byte, decoded_len) = reader.read(1, |buf| {
         Ok((buf[0], varu_decoded_len(buf[0])))
@@ -153,7 +154,7 @@ pub fn varu64_decode_from_reader(mut reader: impl ReadBytes) -> Result<u64> {
     })
 }
 
-/// Decode variable length bytes into `u64`
+/// Decode variable length integer bytes into `u32`
 pub fn varu32_decode_from_reader(mut reader: impl ReadBytes) -> Result<u32> {
     let (first_byte, decoded_len) = reader.read(1, |buf| {
         Ok((buf[0], varu_decoded_len(buf[0])))
@@ -167,11 +168,14 @@ pub fn varu32_decode_from_reader(mut reader: impl ReadBytes) -> Result<u32> {
     }
 }
 
-/// Variable-length encoding for array lengths, enum discriminants etc.
-pub struct VarIntLenEncoder;
+// Note the 32 and 64 bit versions below are binary compatible: 64-bit version can read
+// data written by 32-bit encoder, but not vice versa
+
+/// Variable-length encoding for sequence lengths which writes to the end of the double-ended buffer
+pub struct VarIntTailLenEncoder;
 
 #[cfg(target_pointer_width = "64")]
-impl LengthEncoder for VarIntLenEncoder {
+impl LengthEncoder for VarIntTailLenEncoder {
     type Value = usize;
 
     #[inline]
@@ -189,20 +193,66 @@ impl LengthEncoder for VarIntLenEncoder {
     }
 }
 
-#[cfg(not(target_pointer_width = "64"))]
+#[cfg(target_pointer_width = "32")]
 #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
-impl LengthEncoder for VarIntLenEncoder {
+impl LengthEncoder for VarIntTailLenEncoder {
+    type Value = usize;
+
     #[inline]
-    fn calc_size(value: usize) -> usize {
+    fn calc_size(value: Self::Value) -> usize {
         varu32_encoded_len(value as u32) as usize
     }
     #[inline]
-    fn read(reader: impl ReadBytes, _params: impl EncodingParams) -> Result<usize> {
-        varu32_decode_from_reader(reader).map(|v| v as usize)
+    #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
+    fn read(mut reader: impl TailReadBytes) -> Result<usize> {
+        varu32_decode_from_reader(ReadFromTail(&mut reader)).map(|v| v as usize)
     }
     #[inline]
-    fn write(writer: impl WriteBytes, _params: impl EncodingParams, value: usize) -> Result {
-        varu32_encode_to_writer(writer, value as u32)
+    fn write(mut writer: impl TailWriteBytes, value: usize) -> Result {
+        varu32_encode_to_writer(WriteToTail(&mut writer), value as u32)
+    }
+}
+
+/// Variable-length encoding for sequence lengths which writes
+/// to the head of the double-ended buffer
+pub struct VarIntLenEncoder;
+
+#[cfg(target_pointer_width = "64")]
+impl LengthEncoder for VarIntLenEncoder {
+    type Value = usize;
+
+    #[inline]
+    fn calc_size(value: Self::Value) -> usize {
+        varu64_encoded_len(value as u64) as usize
+    }
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
+    fn read(mut reader: impl TailReadBytes) -> Result<usize> {
+        varu64_decode_from_reader(&mut reader).map(|v| v as usize)
+    }
+    #[inline]
+    fn write(mut writer: impl TailWriteBytes, value: usize) -> Result {
+        varu64_encode_to_writer(&mut writer, value as u64)
+    }
+}
+
+#[cfg(target_pointer_width = "32")]
+#[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
+impl LengthEncoder for VarIntLenEncoder {
+    type Value = usize;
+
+    #[inline]
+    fn calc_size(value: Self::Value) -> usize {
+        varu32_encoded_len(value as u32) as usize
+    }
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)] // can't happen because of cfg
+    fn read(mut reader: impl TailReadBytes) -> Result<usize> {
+        varu32_decode_from_reader(&mut reader).map(|v| v as usize)
+    }
+    #[inline]
+    fn write(mut writer: impl TailWriteBytes, value: usize) -> Result {
+        varu32_encode_to_writer(&mut writer, value as u32)
     }
 }
 

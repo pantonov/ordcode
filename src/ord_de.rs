@@ -1,9 +1,9 @@
-/// _Serde_ deserializer for binary data format which may preserve lexicographical ordering of values
-///
-/// Please see `Serializer` documentation for more details.
 use crate::{Error, buf::TailReadBytes, Result, params::{SerializerParams, LengthEncoder }};
 use serde::de::IntoDeserializer;
 
+/// _Serde_ deserializer for binary data format which may preserve lexicographical ordering of values
+///
+/// Please see `Serializer` documentation for more details.
 pub struct Deserializer<R, P> {
     reader: R,
     params: P,
@@ -76,7 +76,7 @@ impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
             V: serde::de::Visitor<'de>,
     {
         self.visit_bytebuf::<V,_>(|buf| {
-            visitor.visit_str(std::str::from_utf8(buf).map_err(|_| Error::InvalidUtf8Encoding)?)
+            visitor.visit_str(core::str::from_utf8(buf).map_err(|_| Error::InvalidUtf8Encoding)?)
         })
     }
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value>
