@@ -127,7 +127,7 @@ pub fn calc_size_asc<T>(value: &T) -> Result<usize>
 /// assert_eq!(&buf[2..5], b"abc");
 /// assert_eq!(buf[5], 7); // last byte is string length (3) in varint encoding
 /// ```
-#[cfg(all(feature="std", feature="serde"))]
+#[cfg(feature="serde")]
 pub fn ser_to_buf_ordered<T>(value: &T, buf: &mut [u8], order: Order) -> Result<usize>
     where T: ?Sized + serde::ser::Serialize,
 {

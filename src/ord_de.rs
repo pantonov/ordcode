@@ -1,7 +1,7 @@
 use crate::{Error, buf::TailReadBytes, Result, params::{SerializerParams, LengthEncoder }};
 use serde::de::IntoDeserializer;
 
-/// _Serde_ deserializer for binary data format which may preserve lexicographical ordering of values
+/// `serde` deserializer for binary data format which may preserve lexicographical ordering of values
 ///
 /// Please see `Serializer` documentation for more details.
 pub struct Deserializer<R, P> {

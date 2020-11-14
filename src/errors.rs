@@ -20,7 +20,8 @@ pub enum Error {
 }
 
 impl Error {
-    #[cfg(feature="std")] fn descr(&self) -> &str {
+    #[cfg(feature = "std")]
+    fn descr(&self) -> &str {
         match self {
             Error::SerdeCustomError => "serde custom error", // not used
             Error::SerializeSequenceMustHaveLength => "serialized sequence must have length",
@@ -34,9 +35,11 @@ impl Error {
             Error::InvalidUtf8Encoding => "invalid UTF-8 encoding",
             Error::InvalidTagEncoding => "invalid encoding for enum tag",
             Error::InvalidVarintEncoding => "invalid varint encoding",
-            #[cfg(not(feature="std"))] Error::CannotSerializeDisplayInNoStdContext => "", // kill ide warning
+            #[cfg(not(feature = "std"))] Error::CannotSerializeDisplayInNoStdContext => "", // kill ide warning
         }
     }
+    #[cfg(not(feature = "std"))]
+    fn descr(&self) -> &str { "" }
 }
 
 impl core::fmt::Display for Error {

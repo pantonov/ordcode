@@ -3,7 +3,7 @@ use crate::{Error, FormatVersion, buf::TailWriteBytes, Result,
 use crate::params::{AscendingOrder, PortableBinary, NativeBinary};
 use serde::{ser, Serialize};
 
-/// _Serde_ serializer for binary data format which may preserve lexicographical ordering of values
+/// `serde` serializer for binary data format which may preserve lexicographical ordering of values
 ///
 /// The data format is customizable: you can choose lexicographical ordering for encoding
 /// of primitive types, endianness, encoding of lengths and enum discriminants; please see
@@ -18,8 +18,8 @@ use serde::{ser, Serialize};
 ///
 /// Serializer does not allocate anything: double-ended buffer should be big enough to contain
 /// serialized data. To know required buffer size in advance, please use `calc_size` with same
-/// `SerializerParams`. Size calculation is cheap, for fixed-size structures it folds to compile-time
-/// constant.
+/// `SerializerParams`. Size calculation is cheap, for fixed-size structures it folds into
+/// compile-time constant.
 pub struct Serializer<W, P> {
     writer: W,
     params: P,

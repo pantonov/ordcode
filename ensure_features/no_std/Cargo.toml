@@ -1,0 +1,16 @@
+[package]
+name = "no_std"
+version = "0.1.0"
+authors = ["Paul Antonov <paul.antonov@gmail.com>"]
+edition = "2018"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+biord={ version="*", path="../..", default-features=false, features=["serde"] }
+serde={ version="1.*", default-features=false }
+serde_derive = "1.*"
