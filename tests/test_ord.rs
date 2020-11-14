@@ -35,20 +35,16 @@ fn deserialize_desc<T: DeserializeOwned>(b: &mut [u8]) -> Result<T> {
 fn the_same<V>(element: V)
     where V: Serialize + DeserializeOwned + PartialEq + Debug + 'static,
 {
-    {
-        let encoded = serialize_asc(&element).unwrap();
-        let decoded = deserialize_asc(&encoded[..]).unwrap();
+    let test_same = |element, order: Order| {
+        let mut buf = [0_u8; 1<<16];
+        let len =  ser_to_buf_ordered(&element, &mut buf, order).unwrap();
+        let decoded: V = de_from_bytes_ordered(&mut buf[..len], order).unwrap();
 
-        if element != decoded { println!("MISMATCH: {:#?} {:#?}", encoded, decoded); }
-        assert_eq!(element, decoded);
-    }
-    if false {
-        let mut encoded = serialize_desc(&element).unwrap();
-        let decoded = deserialize_desc(encoded.as_mut_slice()).unwrap();
-
-        if element != decoded { println!("MISMATCH: {:#?} {:#?}", encoded, decoded); }
-        assert_eq!(element, decoded);
-    }
+        //if element != decoded { println!("MISMATCH {:#?}: {:#?} {:#?}", order, &buf[..len], decoded); }
+        assert_eq!(element, &decoded);
+    };
+    test_same(&element, Order::Ascending);
+    test_same(&element, Order::Descending);
 }
 
 #[test]
@@ -383,39 +379,3 @@ fn test_byteseq() {
     }
     the_same(v);
 }
-
-/*
-#[test]
-fn test_writers() {
-    let mut b : Vec<u8> = vec![];
-    ord::to_bytes_writer(&mut b, "xren", Order::Ascending).unwrap();
-    ord::to_bytes_writer(&mut b, "zzzz", Order::Ascending).unwrap();
-    let mut r = BytesReader::new(&b);
-    let s1 : String = ord::from_bytes_reader(&mut r, Order::Ascending).unwrap();
-    let s2 : String = ord::from_bytes_reader(&mut r, Order::Ascending).unwrap();
-    assert_eq!(s1, "xren");
-    assert_eq!(s2, "zzzz");
-}
-
-
-#[test]
-fn test_serializer_api() {
-    #[derive(Debug, PartialEq, Serialize, Deserialize)]
-    struct Foo {
-        a:  f32,
-        b:  String,
-        c:  (u16, u32),
-    }
-    let d = Foo { a: 11.1234, b: "привет".to_string(), c: (7, 99) };
-    let mut b : Vec<u8> = vec![];
-    let mut ser = ord::new_serializer_ascending(&mut b);
-    d.serialize(&mut ser).unwrap();
-    let r = BytesReader::new(&b);
-    let mut deser = ord::new_deserializer_ascending(r);
-    let res = Foo::deserialize(&mut deser).unwrap();
-    let mut reader = deser.into_reader();
-    assert!(reader.at_end());
-    assert_eq!(d, res);
-}
-
- */
