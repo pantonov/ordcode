@@ -5,7 +5,7 @@
 //!
 //! **Features**
 //!
-//! * encoding in both ascending and descending lexicographical orderings are supported
+//! * encodings in both ascending and descending lexicographical orderings are supported
 //! * encoding puts lengths of variable-size sequences to the end of serialized data,
 //!   so resulting encoding is prefix-free and friendly to lexicographical ordering
 //! * zero allocations, supports `#[no_std]` environments
@@ -22,7 +22,7 @@
 //! * `serde` (on by default): include `serde` serializer and deserializer.
 //!    If you need only primitives, you can opt out.
 //! * `std` (on by default): opt out for `#[no-std]` use, you will lose some utility methods
-//!   which use `Vec`
+//!   which use `Vec<u8>`
 //!
 //! ### Stability guarantees
 //! The underlying encoding format is simple and unlikely to change.

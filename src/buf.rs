@@ -219,8 +219,7 @@ impl<'a> TailWriteBytes for DeBytesWriter<'a> {
     }
 }
 
-/// Adapter which implements `WriteBytes` for writing to the end of double-ended
-/// write buffer which implements `TailWriteBytes` trait (such as `DeBytesWriter`).
+/// Adapter which implements `WriteBytes` for writing to the end of double-ended buffer
 /// ```
 /// # use biord::{ DeBytesWriter, WriteToTail, params, primitives::serialize_u16 };
 /// let mut buf = vec![0_u8; 100];

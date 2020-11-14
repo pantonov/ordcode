@@ -152,15 +152,3 @@ pub fn invert_buffer(buf: &mut [u8])
         *b = !*b;
     }
 }
-
-/// Write bytes to writer, inverting them if `params.order() = Order::Descending`
-///
-/// For simple byte buffers, `invert_buffer` method is much faster.
-pub fn write_bytes<P: EncodingParams>(mut writer: impl WriteBytes, v: &[u8], _params: P) -> Result {
-    ord_cond!(P, {
-        for b in v {
-            writer.write(&[!b])?;
-        }
-        Ok(())
-    }, writer.write(v) )
-}

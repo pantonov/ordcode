@@ -148,9 +148,11 @@ pub fn write_complement_bytes(mut writer: impl WriteBytes, input: &[u8]) -> Resu
     Ok(())
 }
 
-/// Serialize whole input buffer as ordered byte string, no escaping and termination sequences.
+/// Serialize whole input buffer as ordered byte string, no escaping and termination sequences
+///
 /// This method copies source byte buffer for `Ascending` order, or bitwise complements
-/// if ordering is `Descending`.
+/// if ordering is `Descending`.For simple byte buffers, use `primitives::invert_buffer()` method,
+/// it is much faster.
 pub fn serialize_bytes_noesc<P: EncodingParams>(mut writer: impl WriteBytes, v: &[u8], _param: P) -> Result
 {
     ord_cond!(P, write_complement_bytes(writer, v), writer.write(v))
