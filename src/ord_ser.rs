@@ -176,12 +176,10 @@ impl<'a, W, P> ser::Serializer for &'a mut Serializer<W, P>
         let len = len.ok_or_else (|| Error::SerializeSequenceMustHaveLength)?;
         SerializeCompoundSeq::new(len, self)
     }
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    fn collect_str<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
-        where
-            T: core::fmt::Display,
-    {
-        self.serialize_str(&value.to_string())
+    #[cfg(not(feature = "std"))]
+    fn collect_str<T: ?Sized>(self, _value: &T) -> Result<Self::Ok, Self::Error> where
+        T: core::fmt::Display {
+        Err(Error::CannotSerializeDisplayInNoStdContext)
     }
 }
 

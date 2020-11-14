@@ -1,6 +1,7 @@
 
 /// Serialization and deserialization errors
 #[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
 pub enum Error {
     #[doc(hidden)]
     SerdeCustomError,  // not used, but need to satisfy serde Error traits
@@ -15,11 +16,11 @@ pub enum Error {
     InvalidUtf8Encoding,
     InvalidTagEncoding,
     InvalidVarintEncoding,
+    #[cfg(not(feature="std"))] CannotSerializeDisplayInNoStdContext,
 }
 
 impl Error {
-    fn descr(&self) -> &str {
-        #[cfg(feature="std")]
+    #[cfg(feature="std")] fn descr(&self) -> &str {
         match self {
             Error::SerdeCustomError => "serde custom error", // not used
             Error::SerializeSequenceMustHaveLength => "serialized sequence must have length",
@@ -33,8 +34,8 @@ impl Error {
             Error::InvalidUtf8Encoding => "invalid UTF-8 encoding",
             Error::InvalidTagEncoding => "invalid encoding for enum tag",
             Error::InvalidVarintEncoding => "invalid varint encoding",
+            #[cfg(not(feature="std"))] Error::CannotSerializeDisplayInNoStdContext => "", // kill ide warning
         }
-        #[cfg(not(feature="std"))] ""
     }
 }
 

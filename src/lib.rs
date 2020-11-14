@@ -3,7 +3,7 @@
 //!
 //! It is intended for encoding keys and values in key-value databases.
 //!
-//! *Features:*
+//! **Features**
 //!
 //! * encoding in both ascending and descending lexicographical orderings are supported
 //! * encoding puts lengths of variable-size sequences to the end of serialized data,
@@ -15,6 +15,7 @@
 //! * easily customizable (endianness, encoding of primitive types etc.), with useful pre-sets
 //! * reader/writer traits for double-ended buffers, so you can implement your own or use
 //!   implementations provided by the crate
+//! * no unsafe code
 //!
 //! ### Cargo.toml features and dependencies
 //!
@@ -49,23 +50,20 @@ pub type Result<T = (), E = errors::Error> = core::result::Result<T, E>;
 pub mod varint;
 pub mod bytes_esc;
 
-mod size_calc;
 pub mod params;
 pub mod buf;
 
 #[doc(inline)]
 pub use params::Order;
-
-#[doc(inline)]
-pub use crate::ord_ser::Serializer;
-pub use crate::ord_de::Deserializer;
-
 pub use buf::{DeBytesReader, DeBytesWriter, ReadFromTail, WriteToTail };
 
+#[cfg(feature="serde")] mod size_calc;
 #[cfg(feature="serde")] mod ord_ser;
 #[cfg(feature="serde")] mod ord_de;
-//#[cfg(feature="serde")] mod bin_ser;
-//#[cfg(feature="serde")] mod bin_de;
+
+#[doc(inline)]
+#[cfg(feature="serde")] pub use ord_ser::Serializer;
+#[cfg(feature="serde")] pub use ord_de::Deserializer;
 
 /// Current version of data encoding format for `Serializer` parametrized with some of `SerializerParams`.
 pub trait FormatVersion<P: params::SerializerParams> {
@@ -89,6 +87,7 @@ pub trait FormatVersion<P: params::SerializerParams> {
 /// let data_size = calc_size(&foo, params::AscendingOrder).unwrap();
 /// assert_eq!(data_size, 6);
 /// ```
+#[cfg(feature="serde")]
 pub fn calc_size<T, P>(value: &T, _params: P) -> Result<usize>
     where T: ?Sized + serde::ser::Serialize,
           P: params::SerializerParams,
@@ -99,11 +98,47 @@ pub fn calc_size<T, P>(value: &T, _params: P) -> Result<usize>
 }
 
 /// Convenience method: same as `calc_size`, with `param::AscendingOrder`
-pub fn calc_size_asc<T, P>(value: &T) -> Result<usize>
+#[cfg(feature="serde")]
+pub fn calc_size_asc<T>(value: &T) -> Result<usize>
     where T: ?Sized + serde::ser::Serialize,
-          P: params::SerializerParams,
 {
     calc_size(value, params::AscendingOrder)
+}
+
+/// Serialize `value` into pre-allocated byte buffer.
+///
+/// Buffer is supposed to be large enough to hold serialized data. You can use `calc_size()`
+/// to get exact size of required buffer before serialization.
+///
+/// Returns the actual size of serialized data.
+///
+/// *Example*
+/// ```
+/// # use biord::{ Order, calc_size_asc, ser_to_buf_ordered };
+/// # use serde::ser::Serialize;
+///
+/// #[derive(serde_derive::Serialize)]
+/// struct Foo(u16, String);
+/// let foo = Foo(1, "abc".to_string());
+///
+/// assert_eq!(calc_size_asc(&foo).unwrap(), 6);
+/// let mut buf = [0_u8; 100];  // actually, need 6 bytes for this, but can use larger buffer
+/// assert_eq!(ser_to_buf_ordered(&foo, &mut buf, Order::Ascending).unwrap(), 6);
+/// assert_eq!(&buf[2..5], b"abc");
+/// assert_eq!(buf[5], 7); // last byte is string length (3) in varint encoding
+/// ```
+#[cfg(all(feature="std", feature="serde"))]
+pub fn ser_to_buf_ordered<T>(value: &T, buf: &mut [u8], order: Order) -> Result<usize>
+    where T: ?Sized + serde::ser::Serialize,
+{
+    let mut bi_buf = DeBytesWriter::new(buf);
+    let mut ser = Serializer::new(&mut bi_buf, params::AscendingOrder);
+    value.serialize(&mut ser)?;
+    let len = bi_buf.finalize()?;
+    if matches!(order, Order::Descending) {
+        primitives::invert_buffer(buf);
+    }
+    Ok(len)
 }
 
 /// Serialize `value` into byte vector
@@ -121,7 +156,7 @@ pub fn calc_size_asc<T, P>(value: &T) -> Result<usize>
 /// assert_eq!(&buf[2..5], b"abc");
 /// assert_eq!(buf[5], 7); // last byte is string length (3) in varint encoding
 /// ```
-#[cfg(feature="std")]
+#[cfg(all(feature="std", feature="serde"))]
 pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
     where T: ?Sized + serde::ser::Serialize,
 {
@@ -146,12 +181,12 @@ pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
 /// #[derive(serde_derive::Deserialize)]
 /// struct Foo(u16, String);
 ///
-/// let buf = vec![0_u8, 1, b'a', b'b', b'c', 7];
+/// let buf = [0_u8, 1, b'a', b'b', b'c', 7];
 /// let foo: Foo = de_from_bytes_ordered_asc(&buf).unwrap();
 /// assert_eq!(foo.0, 1);
 /// assert_eq!(foo.1, "abc");
 /// ```
-#[cfg(feature="std")]
+#[cfg(feature="serde")]
 pub fn de_from_bytes_ordered_asc<I, T>(input: I) -> Result<T>
     where I: AsRef<[u8]>,
           T: serde::de::DeserializeOwned,
@@ -172,12 +207,12 @@ pub fn de_from_bytes_ordered_asc<I, T>(input: I) -> Result<T>
 /// #[derive(serde_derive::Deserialize)]
 /// struct Foo(u16, String);
 ///
-/// let mut buf = vec![255_u8, 254, 158, 157, 156, 248];
+/// let mut buf = [255_u8, 254, 158, 157, 156, 248];
 /// let foo: Foo = de_from_bytes_ordered(&mut buf, Order::Descending).unwrap();
 /// assert_eq!(foo.0, 1);
 /// assert_eq!(foo.1, "abc");
 /// ```
-#[cfg(feature="std")]
+#[cfg(feature="serde")]
 pub fn de_from_bytes_ordered<I, T>(mut input: I, order: Order) -> Result<T>
     where I: AsMut<[u8]>,
           T: serde::de::DeserializeOwned,

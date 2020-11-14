@@ -1,5 +1,5 @@
 use crate::{Error, Result, params::{SerializerParams, LengthEncoder}};
-use serde::{ser, Serialize};
+use serde::{ser, Serialize };
 use core::mem::size_of;
 
 /// Serialized object size calculator. Use as `serde::Serializer` on objects.
@@ -175,6 +175,11 @@ impl<'a, P> ser::Serializer for &'a mut SizeCalc<P>
         let len = len.ok_or_else(|| Error::SerializeSequenceMustHaveLength)?;
         self.add_seq_len(len);
         Ok(SerializeCompound { ser: self })
+    }
+    #[cfg(not(feature = "std"))]
+    fn collect_str<T: ?Sized>(self, _value: &T) -> Result<Self::Ok, Self::Error> where
+        T: core::fmt::Display {
+            Err(Error::CannotSerializeDisplayInNoStdContext)
     }
 }
 

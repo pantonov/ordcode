@@ -268,22 +268,21 @@ impl TailWriteBytes for Vec<u8> {
     }
 }
 
-#[cfg(feature="std")]
 #[test]
 fn test_debuffer() {
-    let mut byte_buf = vec![0_u8; 7];
-    let mut bib = DeBytesWriter::new(byte_buf.as_mut_slice());
-    bib.write(b"aa").unwrap();
-    bib.write_tail(b"1").unwrap();
-    bib.write(b"bb").unwrap();
-    bib.write_tail(b"2").unwrap();
-    bib.write(b"d").unwrap();
-    bib.is_complete().unwrap();
-    assert_eq!(&byte_buf, b"aabbd21");
-    let mut rb = DeBytesReader::new(byte_buf.as_slice());
-    assert_eq!(rb.read(3, |b| Ok(b == b"aab")).unwrap(), true);
-    assert_eq!(rb.read_tail(1, |b| Ok(b == b"1")).unwrap(), true);
-    assert_eq!(rb.read_tail(1, |b| Ok(b == b"2")).unwrap(), true);
-    assert_eq!(rb.read(2, |b| Ok(b == b"bd")).unwrap(), true);
-    rb.is_complete().unwrap();
+        let mut byte_buf = [0_u8; 7];
+        let mut bib = DeBytesWriter::new(byte_buf.as_mut());
+        bib.write(b"aa").unwrap();
+        bib.write_tail(b"1").unwrap();
+        bib.write(b"bb").unwrap();
+        bib.write_tail(b"2").unwrap();
+        bib.write(b"d").unwrap();
+        bib.is_complete().unwrap();
+        assert_eq!(byte_buf.as_ref(), b"aabbd21");
+        let mut rb = DeBytesReader::new(byte_buf.as_mut());
+        assert_eq!(rb.read(3, |b| Ok(b == b"aab")).unwrap(), true);
+        assert_eq!(rb.read_tail(1, |b| Ok(b == b"1")).unwrap(), true);
+        assert_eq!(rb.read_tail(1, |b| Ok(b == b"2")).unwrap(), true);
+        assert_eq!(rb.read(2, |b| Ok(b == b"bd")).unwrap(), true);
+        rb.is_complete().unwrap();
 }
