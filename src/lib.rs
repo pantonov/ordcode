@@ -65,7 +65,7 @@ pub use buf::{DeBytesReader, DeBytesWriter, ReadFromTail, WriteToTail };
 #[cfg(feature="serde")] pub use ord_ser::Serializer;
 #[cfg(feature="serde")] pub use ord_de::Deserializer;
 
-/// Current version of data encoding format for `Serializer` parametrized with some of `SerializerParams`.
+/// Current version of data encoding format for `Serializer` parametrized with some `SerializerParams`.
 pub trait FormatVersion<P: params::SerializerParams> {
     const VERSION: u32;
 }

@@ -7,9 +7,6 @@
 //!   is impractical (it is too common)
 use crate::{Error, buf::{ReadBytes, WriteBytes}, Result, Order, params::EncodingParams};
 
-#[cfg(features="std")]
-use crate::BytesBufExt;
-
 fn apply_over_esc<R, F>(rb: &mut R, esc: u8, advance: bool, f: &mut F) -> Result
     where F: FnMut(&[u8], u8) -> Result<bool>,
     R: ReadBytes,
