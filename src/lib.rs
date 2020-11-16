@@ -33,7 +33,7 @@
 //! databases like _rocksdb_, where reverse iteration is slower than forward iteration.
 
 //#![doc(html_root_url = "https://docs.rs/ordcode")]
-#![crate_name = "biord"]
+#![crate_name = "ordcode"]
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(clippy::missing_errors_doc)]
 
@@ -77,7 +77,7 @@ pub trait FormatVersion<P: params::SerializerParams> {
 /// constant, or a few `len()` method calls for variable-size objects.
 ///
 /// ```
-/// # use biord::{ calc_size, params };
+/// # use ordcode::{ calc_size, params };
 /// # use serde::ser::Serialize;
 ///
 /// #[derive(serde_derive::Serialize)]
@@ -114,7 +114,7 @@ pub fn calc_size_asc<T>(value: &T) -> Result<usize>
 ///
 /// *Example*
 /// ```
-/// # use biord::{ Order, calc_size_asc, ser_to_buf_ordered };
+/// # use ordcode::{ Order, calc_size_asc, ser_to_buf_ordered };
 /// # use serde::ser::Serialize;
 ///
 /// #[derive(serde_derive::Serialize)]
@@ -145,7 +145,7 @@ pub fn ser_to_buf_ordered<T>(value: &T, buf: &mut [u8], order: Order) -> Result<
 ///
 /// *Example*
 /// ```
-/// # use biord::{ Order, ser_to_vec_ordered };
+/// # use ordcode::{ Order, ser_to_vec_ordered };
 /// # use serde::ser::Serialize;
 ///
 /// #[derive(serde_derive::Serialize)]
@@ -176,7 +176,7 @@ pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
 /// *Example*
 /// ```
 /// # use serde::de::Deserialize;
-/// # use biord::de_from_bytes_ordered_asc;
+/// # use ordcode::de_from_bytes_ordered_asc;
 ///
 /// #[derive(serde_derive::Deserialize)]
 /// struct Foo(u16, String);
@@ -202,7 +202,7 @@ pub fn de_from_bytes_ordered_asc<I, T>(input: I) -> Result<T>
 /// *Example*
 /// ```
 /// # use serde::de::Deserialize;
-/// # use biord::{ Order, de_from_bytes_ordered, primitives };
+/// # use ordcode::{ Order, de_from_bytes_ordered, primitives };
 ///
 /// #[derive(serde_derive::Deserialize)]
 /// struct Foo(u16, String);

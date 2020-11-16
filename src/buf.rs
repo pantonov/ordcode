@@ -114,7 +114,7 @@ impl<'a> TailReadBytes for DeBytesReader<'a> {
 
 /// Adapter which implements `ReadBytes` for reading from the end of the buffer.
 /// ```
-/// # use biord::{ DeBytesReader, ReadFromTail, params, primitives::deserialize_u16 };
+/// # use ordcode::{ DeBytesReader, ReadFromTail, params, primitives::deserialize_u16 };
 /// let buf = vec![11, 22, 33, 44, 55, 0, 1];
 /// let mut reader = DeBytesReader::new(&buf);
 /// assert_eq!(deserialize_u16(ReadFromTail(&mut reader), params::AscendingOrder).unwrap(), 1);
@@ -221,7 +221,7 @@ impl<'a> TailWriteBytes for DeBytesWriter<'a> {
 
 /// Adapter which implements `WriteBytes` for writing to the end of double-ended buffer
 /// ```
-/// # use biord::{ DeBytesWriter, WriteToTail, params, primitives::serialize_u16 };
+/// # use ordcode::{ DeBytesWriter, WriteToTail, params, primitives::serialize_u16 };
 /// let mut buf = vec![0_u8; 100];
 /// let mut writer = DeBytesWriter::new(&mut buf);
 /// serialize_u16(WriteToTail(&mut writer), 1, params::AscendingOrder).unwrap();

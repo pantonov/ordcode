@@ -1,4 +1,4 @@
-use biord::{ *, varint::*  };
+use ordcode::{ *, varint::*  };
 
 // Varint tests are adopted and modified from VInt implementation, github.com/iqlusioninc/veriform
 // Original Copyright © 2017-2020 Tony Arcieri

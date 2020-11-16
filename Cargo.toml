@@ -1,12 +1,12 @@
 [package]
-name = "biord"
+name = "ordcode"
 version = "0.1.2"
 authors = ["Paul Antonov, <paul.antonov@gmail.com>"]
 exclude = [".gitignore", ".idea", ".travis.yml"]
 edition = "2018"
 
 publish=false
-repository = "https://github.com/pantonov/biord"
+repository = "https://github.com/pantonov/ordcode"
 #documentation = "https://docs.rs/ordcode"
 readme = "README.md"
 categories = [ "encoding", "data-structures", "database" ]

@@ -1,6 +1,6 @@
 #![allow(clippy::float_cmp)]
 
-use biord::{*, params::*, primitives, bytes_esc  };
+use ordcode::{*, params::*, primitives, bytes_esc  };
 use std::{f32, f64};
 
 // test values, few normal ones plus corner cases

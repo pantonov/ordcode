@@ -5,6 +5,6 @@ authors = ["Paul Antonov <paul.antonov@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-biord={ version="*", path="../..", default-features=false, features=["std"] }
+ordcode={ version="*", path="../..", default-features=false, features=["std"] }
 
 

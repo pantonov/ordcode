@@ -11,6 +11,6 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-biord={ version="*", path="../..", default-features=false, features=["serde"] }
+ordcode={ version="*", path="../..", default-features=false, features=["serde"] }
 serde={ version="1.*", default-features=false }
 serde_derive = "1.*"

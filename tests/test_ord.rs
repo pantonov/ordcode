@@ -3,14 +3,14 @@
 #[macro_use] extern crate serde;
 #[macro_use] extern crate serde_derive;
 
-extern crate biord;
+extern crate ordcode;
 extern crate serde_bytes;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use biord::*;
+use ordcode::*;
 
 use serde::de::{ DeserializeOwned };
 use serde::ser::Serialize;
