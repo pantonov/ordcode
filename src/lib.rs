@@ -131,10 +131,10 @@ pub fn calc_size_asc<T>(value: &T) -> Result<usize>
 pub fn ser_to_buf_ordered<T>(value: &T, buf: &mut [u8], order: Order) -> Result<usize>
     where T: ?Sized + serde::ser::Serialize,
 {
-    let mut bi_buf = DeBytesWriter::new(buf);
-    let mut ser = Serializer::new(&mut bi_buf, params::AscendingOrder);
+    let mut de_buf = DeBytesWriter::new(buf);
+    let mut ser = new_ser_asc(&mut de_buf);
     value.serialize(&mut ser)?;
-    let len = bi_buf.finalize()?;
+    let len = de_buf.finalize()?;
     if matches!(order, Order::Descending) {
         primitives::invert_buffer(buf);
     }
@@ -161,10 +161,10 @@ pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
     where T: ?Sized + serde::ser::Serialize,
 {
     let mut byte_buf = vec![0u8; calc_size(value, params::AscendingOrder)?];
-    let mut bi_buf = DeBytesWriter::new(byte_buf.as_mut_slice());
-    let mut ser = Serializer::new(&mut bi_buf, params::AscendingOrder);
+    let mut de_buf = DeBytesWriter::new(byte_buf.as_mut_slice());
+    let mut ser = new_ser_asc(&mut de_buf);
     value.serialize(&mut ser)?;
-    bi_buf.is_complete()?;
+    de_buf.is_complete()?;
     if matches!(order, Order::Descending) {
         primitives::invert_buffer(&mut byte_buf);
     }
@@ -192,7 +192,7 @@ pub fn de_from_bytes_ordered_asc<I, T>(input: I) -> Result<T>
           T: serde::de::DeserializeOwned,
 {
     let mut reader = DeBytesReader::new(input.as_ref());
-    let mut deser = Deserializer::new(&mut reader, params::AscendingOrder);
+    let mut deser = new_de_asc(&mut reader);
     T::deserialize(&mut deser)
 }
 /// Deserialize value from mutable byte slice.
@@ -221,6 +221,22 @@ pub fn de_from_bytes_ordered<I, T>(mut input: I, order: Order) -> Result<T>
         primitives::invert_buffer(input.as_mut());
     }
     let mut reader = DeBytesReader::new(input.as_mut());
-    let mut deser = Deserializer::new(&mut reader, params::AscendingOrder);
+    let mut deser = new_de_asc(&mut reader);
     T::deserialize(&mut deser)
+}
+
+/// Create new default serializer instance (with `params::AscendingOrder`)
+#[inline]
+pub fn new_ser_asc<W>(writer: W) -> Serializer<W, params::AscendingOrder>
+    where W: buf::TailWriteBytes,
+{
+    Serializer::new(writer, params::AscendingOrder)
+}
+
+/// Create new default deserializer instance (with `params::AscendingOrder`)
+#[inline]
+pub fn new_de_asc<R>(reader: R) -> Deserializer<R, params::AscendingOrder>
+    where R: buf::TailReadBytes,
+{
+    Deserializer::new(reader, params::AscendingOrder)
 }
