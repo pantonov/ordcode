@@ -37,7 +37,7 @@ fn the_same<V>(element: V)
 {
     let test_same = |element, order: Order| {
         let mut buf = [0_u8; 1<<16];
-        let len =  ser_to_buf_ordered(&element, &mut buf, order).unwrap();
+        let len =  ser_to_buf_ordered(&mut buf, &element, order).unwrap();
         let decoded: V = de_from_bytes_ordered(&mut buf[..len], order).unwrap();
 
         //if element != decoded { println!("MISMATCH {:#?}: {:#?} {:#?}", order, &buf[..len], decoded); }

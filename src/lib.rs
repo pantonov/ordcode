@@ -123,12 +123,12 @@ pub fn calc_size_asc<T>(value: &T) -> Result<usize>
 ///
 /// assert_eq!(calc_size_asc(&foo).unwrap(), 6);
 /// let mut buf = [0_u8; 100];  // actually, need 6 bytes for this, but can use larger buffer
-/// assert_eq!(ser_to_buf_ordered(&foo, &mut buf, Order::Ascending).unwrap(), 6);
+/// assert_eq!(ser_to_buf_ordered(&mut buf, &foo, Order::Ascending).unwrap(), 6);
 /// assert_eq!(&buf[2..5], b"abc");
 /// assert_eq!(buf[5], 7); // last byte is string length (3) in varint encoding
 /// ```
 #[cfg(feature="serde")]
-pub fn ser_to_buf_ordered<T>(value: &T, buf: &mut [u8], order: Order) -> Result<usize>
+pub fn ser_to_buf_ordered<T>(buf: &mut [u8], value: &T, order: Order) -> Result<usize>
     where T: ?Sized + serde::ser::Serialize,
 {
     let mut de_buf = DeBytesWriter::new(buf);
@@ -159,12 +159,12 @@ pub fn ser_to_buf_ordered<T>(value: &T, buf: &mut [u8], order: Order) -> Result<
 ///
 /// assert_eq!(calc_size_asc(&foo).unwrap(), 6);
 /// let mut buf = [0_u8; 6];  // need buffer of exact size!
-/// ser_to_buf_asc_exact(&foo, &mut buf).unwrap();
+/// ser_to_buf_asc_exact(&mut buf, &foo).unwrap();
 /// assert_eq!(&buf[2..5], b"abc");
 /// assert_eq!(buf[5], 7); // last byte is string length (3) in varint encoding
 /// ```
 #[cfg(feature="serde")]
-pub fn ser_to_buf_asc_exact<T>(value: &T, buf: &mut [u8]) -> Result
+pub fn ser_to_buf_asc_exact<T>(buf: &mut [u8], value: &T) -> Result
     where T: ?Sized + serde::ser::Serialize,
 {
     let mut de_buf = DeBytesWriter::new(buf);
