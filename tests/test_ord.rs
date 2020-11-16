@@ -20,7 +20,7 @@ fn serialize_asc<T: Serialize + ?Sized>(v: &T) -> Result<Vec<u8>> {
 }
 
 fn deserialize_asc<T: DeserializeOwned>(b: &[u8]) -> Result<T> {
-    de_from_bytes_ordered_asc(b)
+    de_from_bytes_asc(b)
 }
 
 fn serialize_desc<T: Serialize + ?Sized>(v: &T) -> Result<Vec<u8>> {

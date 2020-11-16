@@ -141,6 +141,38 @@ pub fn ser_to_buf_ordered<T>(value: &T, buf: &mut [u8], order: Order) -> Result<
     Ok(len)
 }
 
+/// Serialize `value` into pre-allocated, exact size byte buffer
+///
+/// Buffer is expected to be of exact size to hold serialized data. You can use `calc_size()`
+/// to get exact size of required buffer before serialization.
+///
+/// In case of buffer underflow or buffer overflow, corresponding error is returned.
+///
+/// *Example*
+/// ```
+/// # use ordcode::{ Order, calc_size_asc, ser_to_buf_asc_exact };
+/// # use serde::ser::Serialize;
+///
+/// #[derive(serde_derive::Serialize)]
+/// struct Foo(u16, String);
+/// let foo = Foo(1, "abc".to_string());
+///
+/// assert_eq!(calc_size_asc(&foo).unwrap(), 6);
+/// let mut buf = [0_u8; 6];  // need buffer of exact size!
+/// ser_to_buf_asc_exact(&foo, &mut buf).unwrap();
+/// assert_eq!(&buf[2..5], b"abc");
+/// assert_eq!(buf[5], 7); // last byte is string length (3) in varint encoding
+/// ```
+#[cfg(feature="serde")]
+pub fn ser_to_buf_asc_exact<T>(value: &T, buf: &mut [u8]) -> Result
+    where T: ?Sized + serde::ser::Serialize,
+{
+    let mut de_buf = DeBytesWriter::new(buf);
+    let mut ser = new_ser_asc(&mut de_buf);
+    value.serialize(&mut ser)?;
+    de_buf.is_complete()
+}
+
 /// Serialize `value` into byte vector
 ///
 /// *Example*
@@ -171,23 +203,23 @@ pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
     Ok(byte_buf)
 }
 
-/// Deserialize value from byte slice
+/// Deserialize value from byte slice with `params::AscendingOrder`
 ///
 /// *Example*
 /// ```
 /// # use serde::de::Deserialize;
-/// # use ordcode::de_from_bytes_ordered_asc;
+/// # use ordcode::de_from_bytes_asc;
 ///
 /// #[derive(serde_derive::Deserialize)]
 /// struct Foo(u16, String);
 ///
 /// let buf = [0_u8, 1, b'a', b'b', b'c', 7];
-/// let foo: Foo = de_from_bytes_ordered_asc(&buf).unwrap();
+/// let foo: Foo = de_from_bytes_asc(&buf).unwrap();
 /// assert_eq!(foo.0, 1);
 /// assert_eq!(foo.1, "abc");
 /// ```
 #[cfg(feature="serde")]
-pub fn de_from_bytes_ordered_asc<I, T>(input: I) -> Result<T>
+pub fn de_from_bytes_asc<I, T>(input: I) -> Result<T>
     where I: AsRef<[u8]>,
           T: serde::de::DeserializeOwned,
 {
@@ -226,6 +258,7 @@ pub fn de_from_bytes_ordered<I, T>(mut input: I, order: Order) -> Result<T>
 }
 
 /// Create new default serializer instance (with `params::AscendingOrder`)
+#[cfg(feature="serde")]
 #[inline]
 pub fn new_ser_asc<W>(writer: W) -> Serializer<W, params::AscendingOrder>
     where W: buf::TailWriteBytes,
@@ -234,6 +267,7 @@ pub fn new_ser_asc<W>(writer: W) -> Serializer<W, params::AscendingOrder>
 }
 
 /// Create new default deserializer instance (with `params::AscendingOrder`)
+#[cfg(feature="serde")]
 #[inline]
 pub fn new_de_asc<R>(reader: R) -> Deserializer<R, params::AscendingOrder>
     where R: buf::TailReadBytes,
