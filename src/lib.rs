@@ -63,7 +63,10 @@ pub use buf::{DeBytesReader, DeBytesWriter, ReadFromTail, WriteToTail };
 
 #[doc(inline)]
 #[cfg(feature="serde")] pub use ord_ser::Serializer;
+#[doc(inline)]
 #[cfg(feature="serde")] pub use ord_de::Deserializer;
+#[doc(inline)]
+#[cfg(feature="serde")] pub use size_calc::SizeCalc;
 
 /// Current version of data encoding format for `Serializer` parametrized with some `SerializerParams`.
 pub trait FormatVersion<P: params::SerializerParams> {

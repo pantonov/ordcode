@@ -2,7 +2,9 @@ use crate::{Error, Result, params::{SerializerParams, LengthEncoder}};
 use serde::{ser, Serialize };
 use core::mem::size_of;
 
-/// Serialized object size calculator. Use as `serde::Serializer` on objects.
+/// Serialized object size calculator
+///
+/// Use as `serde::Serializer` on objects, then `.size()` will return serialized data size
 pub struct SizeCalc<P> {
     size:   usize,
     _marker: core::marker::PhantomData<P>,

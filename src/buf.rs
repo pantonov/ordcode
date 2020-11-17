@@ -267,6 +267,27 @@ impl TailWriteBytes for Vec<u8> {
     }
 }
 
+/// Adapter for always writing to buffer head, even for `write_tail()`
+///
+/// Useful e.g. for appending serialized suffix to the buffer
+pub struct WriteToHead<'a, W>(pub &'a mut W) where W: WriteBytes;
+
+impl<'a, W> WriteBytes for WriteToHead<'a, W>
+    where W: TailWriteBytes
+{
+    fn write(&mut self, value: &[u8]) -> Result {
+        self.0.write(value)
+    }
+}
+
+impl<'a, W> TailWriteBytes for WriteToHead<'a, W>
+    where W: TailWriteBytes
+{
+    fn write_tail(&mut self, value: &[u8]) -> Result {
+        self.0.write(value)
+    }
+}
+
 #[test]
 fn test_debuffer() {
     let mut byte_buf = [0_u8; 7];
