@@ -3,7 +3,7 @@
 //!
 //! It is intended for encoding keys and values in key-value databases.
 //!
-//! **OMG! Yet another serialization format?**
+//! ## OMG! Yet another serialization format?
 //!
 //! In most existing designs, prefix-free encoding of byte sequences is performed by escaping
 //! "end-of-sequence" bytes. This takes extra space, and makes it difficult to know sequence length
@@ -18,7 +18,7 @@
 //! enable effective and predictable buffer management for repetitive scans and no-heap
 //! (`#[no-std]`) targets.
 //!
-//! **Features**
+//! ## Features
 //!
 //! * encodings in both ascending and descending lexicographical orderings are supported
 //! * encoding puts lengths of variable-size sequences to the end of serialized data,
@@ -32,14 +32,14 @@
 //!   implementations provided by the crate
 //! * no unsafe code
 //!
-//! ### Cargo.toml features and dependencies
+//! ## Cargo.toml features and dependencies
 //!
 //! * `serde` (on by default): include `serde` serializer and deserializer.
 //!    If you need only primitives, you can opt out.
 //! * `std` (on by default): opt out for `#[no-std]` use, you will lose some convenience methods
 //!   which use `Vec<u8>`
 //!
-//! ### Stability guarantees
+//! ## Stability guarantees
 //! The underlying encoding format is simple and unlikely to change.
 //! As a safeguard, `Serializer` implements `FormatVersion` trait for all serializer parameter
 //! pre-sets (`AscendingOrder`, `PortableBinary`, `NativeBinary`).
