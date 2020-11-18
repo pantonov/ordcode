@@ -119,7 +119,6 @@ impl<'a> TailReadBytes for DeBytesReader<'a> {
 /// let mut reader = DeBytesReader::new(&buf);
 /// assert_eq!(deserialize_u16(ReadFromTail(&mut reader), params::AscendingOrder).unwrap(), 1);
 /// ```
-/// (which in turn should implement `TailReadBytes` trait (such as `BytesReader`).
 pub struct ReadFromTail<'a, R>(pub &'a mut R) where R: TailReadBytes;
 
 impl <'a, R> ReadBytes for ReadFromTail<'a, R>

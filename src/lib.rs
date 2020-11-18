@@ -3,6 +3,21 @@
 //!
 //! It is intended for encoding keys and values in key-value databases.
 //!
+//! **OMG! Yet another serialization format?**
+//!
+//! In most existing designs, prefix-free encoding of byte sequences is performed by escaping
+//! "end-of-sequence" bytes. This takes extra space, and makes it difficult to know sequence length
+//! without processing the whole input buffer; this also complicates memory allocation for
+//! deserialized data. Instead, we take advantage of the fact that exact record size is always
+//! known in key-value databases, so this implementation relies on "two-sided" buffer design:
+//! sequence lengths are varint-encoded and pushed to the tail end of the buffer, so
+//! it is possible to get original length of serialized byte sequence(s) by deserializing of
+//! a few bytes only.
+//! For serialization, this implementation provides (very fast) calculation of exact size
+//! of serialized data length before serialization itself. These features
+//! enable effective and predictable buffer management for repetitive scans and no-heap
+//! (`#[no-std]`) targets.
+//!
 //! **Features**
 //!
 //! * encodings in both ascending and descending lexicographical orderings are supported
@@ -21,7 +36,7 @@
 //!
 //! * `serde` (on by default): include `serde` serializer and deserializer.
 //!    If you need only primitives, you can opt out.
-//! * `std` (on by default): opt out for `#[no-std]` use, you will lose some utility methods
+//! * `std` (on by default): opt out for `#[no-std]` use, you will lose some convenience methods
 //!   which use `Vec<u8>`
 //!
 //! ### Stability guarantees
