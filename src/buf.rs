@@ -4,7 +4,7 @@ use crate::{Result, Error};
 
 /// Simple byte reader from buffer
 ///
-/// If you need to read from `&[u8]`, you may use `BytesReader` provided by this crate.
+/// If you need to read from `&[u8]`, you may use [`DeBytesReader`] provided by this crate.
 pub trait ReadBytes {
     /// Peek `n` bytes from head
     fn peek<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R>;
@@ -31,6 +31,7 @@ pub trait ReadBytes {
     }
 }
 
+/// Trait for reading from the tail of byte buffer
 pub trait TailReadBytes: ReadBytes {
     fn peek_tail<F, R>(&mut self, n: usize, f: F) -> Result<R> where F: FnOnce(&[u8]) -> Result<R>;
 
@@ -68,7 +69,7 @@ impl<'a, T> TailReadBytes for &'a mut T where T: TailReadBytes  {
 
 /// Adapter type which implements double-ended read buffer over byte slice
 ///
-/// Implements `ReadBytes`, `TailReadBytes` traits and intended to be used as input to `Deserializer`.
+/// Implements [`ReadBytes`], [`TailReadBytes`] traits and intended to be used as input to [`Deserializer`](crate::Deserializer).
 pub struct DeBytesReader<'a> {
     buf: &'a [u8],
 }
@@ -112,7 +113,7 @@ impl<'a> TailReadBytes for DeBytesReader<'a> {
     }
 }
 
-/// Adapter which implements `ReadBytes` for reading from the end of the buffer.
+/// Adapter which implements [`ReadBytes`] for reading from the end of the buffer.
 /// ```
 /// # use ordcode::{ DeBytesReader, ReadFromTail, params, primitives::deserialize_u16 };
 /// let buf = vec![11, 22, 33, 44, 55, 0, 1];
@@ -156,7 +157,7 @@ pub trait TailWriteBytes: WriteBytes {
 
 /// Adapter type which implements double-ended write byte buffer over mutable byte slice
 ///
-/// `DeBytesWriter` implements `WriteBytes` and `TailWriteBytes`, and can be used with `Serializer`.
+/// [`DeBytesWriter`] implements [`WriteBytes`] and [`TailWriteBytes`], and can be used with [`Serializer`](crate::Serializer).
 pub struct DeBytesWriter<'a> {
     buf: &'a mut [u8],
     head: usize,

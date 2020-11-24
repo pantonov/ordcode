@@ -4,10 +4,10 @@ use core::mem::size_of;
 
 /// Serialized object size calculator
 ///
-/// Use as `serde::Serializer` on objects, then `.size()` will return serialized data size
+/// Use as [`serde::Serializer`] on objects, then `.size()` will return serialized data size
 ///
 /// Calculation process is inexpensive, for fixed-size objects it evaluates to compile-time constant,
-/// or a few len() method calls for variable-size objects (when compiling in release mode).
+/// or a few `len()` method calls for variable-size objects (when compiling in release mode).
 pub struct SizeCalc<P> {
     size:   usize,
     _marker: core::marker::PhantomData<P>,

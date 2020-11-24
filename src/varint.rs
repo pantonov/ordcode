@@ -6,7 +6,7 @@ use crate::{buf::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes, WriteToT
 
 // Varint code adaped and modified from the source below:
 // VInt implementation: github.com/iqlusioninc/veriform
-/// Get the length of an varint-encoded u64 for the given value in bytes
+/// Get the length of an varint-encoded `u64` for the given value in bytes
 #[must_use] #[inline]
 pub fn varu64_encoded_len(value: u64) -> u8 {
     // indexing const array is twice as fast as 'match' in release mode
@@ -15,7 +15,7 @@ pub fn varu64_encoded_len(value: u64) -> u8 {
     LENGTHS[value.leading_zeros() as usize]
 }
 
-/// Get the length of an varint-encoded u32 for the given value in bytes
+/// Get the length of an varint-encoded `u32` for the given value in bytes
 #[must_use] #[inline]
 pub fn varu32_encoded_len(value: u32) -> u8 {
     const LENGTHS: [u8; 33] = [ 5,5,5,5,4,4,4,4,4,4,4,3,3,3,3,3,3,3,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1 ];

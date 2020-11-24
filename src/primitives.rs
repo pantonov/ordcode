@@ -1,13 +1,13 @@
 //! Ordered serialization/deserialization methods for primitive types and byte arrays.
 //!
 //! If you need to serialize or deserialize a primitive type (e.g. for use as a key), it is better
-//! to use these primitives directly, without using `serde`.
+//! to use these primitives directly, without using [`serde`].
 //!
 //! Serialize methods write results to `WriteBytes` trait impl, deserialize methods read from
-//! `ReadBytes`. Both are defined on top of this crate.
+//! [`ReadBytes`]. Both are defined on top of this crate.
 //!
-//! **Deserializing a value which was serialized for different `EncodingParams` is unchecked and
-//! is undefined behaviour!**
+//! **Deserializing a value which was serialized for different [`EncodingParams`](crate::params::EncodingParams)
+//! is unchecked and is undefined behaviour!**
 //!
 //! Note that `u128` and `i128` may not be supported on some platforms.
 //!

@@ -41,8 +41,8 @@
 //!
 //! ## Stability guarantees
 //! The underlying encoding format is simple and unlikely to change.
-//! As a safeguard, `Serializer` implements `FormatVersion` trait for all serializer parameter
-//! pre-sets (`AscendingOrder`, `PortableBinary`, `NativeBinary`).
+//! As a safeguard, [`Serializer`] implements [`FormatVersion`] trait for all serializer parameter
+//! pre-sets ([`params::AscendingOrder`], [`params::PortableBinary`], [`params::NativeBinary`]).
 //!
 //! Note: serializing with descending lexicographical order is particularly useful for key-value
 //! databases like _rocksdb_, where reverse iteration is slower than forward iteration.
@@ -83,12 +83,13 @@ pub use buf::{DeBytesReader, DeBytesWriter, ReadFromTail, WriteToTail };
 #[doc(inline)]
 #[cfg(feature="serde")] pub use size_calc::SizeCalc;
 
-/// Current version of data encoding format for `Serializer` parametrized with some `SerializerParams`.
+/// Current version of data encoding format for [`Serializer`] parametrized with
+/// some [`params::SerializerParams`].
 pub trait FormatVersion<P: params::SerializerParams> {
     const VERSION: u32;
 }
 
-/// Calculate exact size of serialized data for a `serde::Serialize` value.
+/// Calculate exact size of serialized data for a [`serde::Serialize`] value.
 ///
 /// Useful for calculating exact size of serialized objects for buffer allocations.
 /// Calculation process is inexpensive, for fixed-size objects it evaluates to compile-time
@@ -115,7 +116,7 @@ pub fn calc_size<T, P>(value: &T, _params: P) -> Result<usize>
     Ok(sc.size())
 }
 
-/// Convenience method: same as `calc_size`, with `param::AscendingOrder`
+/// Convenience method: same as [`calc_size()`], with [`params::AscendingOrder`]
 #[cfg(feature="serde")]
 pub fn calc_size_asc<T>(value: &T) -> Result<usize>
     where T: ?Sized + serde::ser::Serialize,
@@ -125,7 +126,7 @@ pub fn calc_size_asc<T>(value: &T) -> Result<usize>
 
 /// Serialize `value` into pre-allocated byte buffer.
 ///
-/// Buffer is supposed to be large enough to hold serialized data. You can use `calc_size()`
+/// Buffer is supposed to be large enough to hold serialized data. You can use [`calc_size()`]
 /// to get exact size of required buffer before serialization.
 ///
 /// Returns the actual size of serialized data.
@@ -161,7 +162,7 @@ pub fn ser_to_buf_ordered<T>(buf: &mut [u8], value: &T, order: Order) -> Result<
 
 /// Serialize `value` into pre-allocated, exact size byte buffer
 ///
-/// Buffer is expected to be of exact size to hold serialized data. You can use `calc_size()`
+/// Buffer is expected to be of exact size to hold serialized data. You can use [`calc_size()`]
 /// to get exact size of required buffer before serialization.
 ///
 /// In case of buffer underflow or buffer overflow, corresponding error is returned.
@@ -221,7 +222,7 @@ pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
     Ok(byte_buf)
 }
 
-/// Deserialize value from byte slice with `params::AscendingOrder`
+/// Deserialize value from byte slice with [`params::AscendingOrder`]
 ///
 /// *Example*
 /// ```
@@ -247,7 +248,7 @@ pub fn de_from_bytes_asc<I, T>(input: I) -> Result<T>
 }
 /// Deserialize value from mutable byte slice.
 ///
-/// `For Order::Descending`, the buffer will be inverted in-place.
+/// For [`Order::Descending`], the buffer will be inverted in-place.
 ///
 /// *Example*
 /// ```
@@ -275,7 +276,7 @@ pub fn de_from_bytes_ordered<I, T>(mut input: I, order: Order) -> Result<T>
     T::deserialize(&mut deser)
 }
 
-/// Create new default serializer instance (with `params::AscendingOrder`)
+/// Create new default serializer instance (with [`params::AscendingOrder`])
 #[cfg(feature="serde")]
 #[inline]
 pub fn new_ser_asc<W>(writer: W) -> Serializer<W, params::AscendingOrder>
@@ -284,7 +285,7 @@ pub fn new_ser_asc<W>(writer: W) -> Serializer<W, params::AscendingOrder>
     Serializer::new(writer, params::AscendingOrder)
 }
 
-/// Create new default deserializer instance (with `params::AscendingOrder`)
+/// Create new default deserializer instance (with [`params::AscendingOrder`])
 #[cfg(feature="serde")]
 #[inline]
 pub fn new_de_asc<R>(reader: R) -> Deserializer<R, params::AscendingOrder>

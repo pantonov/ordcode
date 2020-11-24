@@ -12,7 +12,7 @@ use crate::{varint, Result, buf::{TailReadBytes, TailWriteBytes}};
 pub enum Order {
     Ascending,
     Descending,
-    /// For use by other crates. For the purposes of `ordcode`, same as `Ascending`.
+    /// For use by other crates. For the purposes of `ordcode`, same as [`Ascending`](Order::Ascending).
     Unordered
 }
 
@@ -28,13 +28,13 @@ pub enum Endianness {
 pub trait EncodingParams: Copy {
     /// Serialization ordering of primitive types
     ///
-    /// Note that you should not specify `Order::Descending` when parameterizing `OrderedSerializer`:
+    /// Note that you should not specify [`Order::Descending`] when parameterizing [`Serializer`](crate::Serializer):
     /// descending ordering for composite types is achieved differently, by negating resulting
     /// byte buffer (this is also faster).
     const ORDER: Order;
 
     /// Endianness for encoding integer and float values; for encodings which preserve
-    /// lexicographical ordering, should be `Endianness::Big`
+    /// lexicographical ordering, should be [`Endianness::Big`]
     const ENDIANNESS: Endianness;
 }
 
@@ -49,7 +49,7 @@ pub trait SerializerParams: EncodingParams {
 
 /// Encoder for array lengths, enum discriminants etc.
 pub trait LengthEncoder {
-    /// Value type, may be u32, u64 or usize
+    /// Value type, may be `u32`, `u64` or usize
     type Value;
 
     /// Calculate serialized size for value
@@ -84,8 +84,9 @@ impl SerializerParams for AscendingOrder {
 
 /// Encoding paramerers for lexicographical order-preserving serialization in descending order
 ///
-/// Note: deliberately implements only `EncodingParams` trait, not `SerializerParams`, so it can
-/// be used with serialization primitives, but not with `Serializer` or `Deserializer`.
+/// Note: deliberately implements only [`EncodingParams`] trait, not [`SerializerParams`], so it can
+/// be used with serialization primitives, but not with [`Serializer`](crate::Serializer)
+/// or [`Deserializer`](crate::Deserializer).
 #[derive(Copy, Clone, Default)]
 pub struct DescendingOrder;
 
@@ -95,8 +96,10 @@ impl EncodingParams for DescendingOrder {
 }
 
 /// Serializer parameters for portable binary format, which does not need double-ended buffer.
-/// However, it still requires implementation of `TailBytesRead`, `TailBytesWrite` traits
-/// for reader and writer, which should behave same as `BytesRead`, `BytesWrite`.
+/// However, it still requires implementation of [`TailReadBytes`](crate::buf::TailReadBytes),
+/// [`TailWriteBytes`](crate::buf::TailWriteBytes) traits
+/// for reader and writer, which should behave same as [`ReadBytes`](crate::buf::ReadBytes),
+/// [`WriteBytes`](crate::buf::WriteBytes).
 #[derive(Copy, Clone, Default)]
 pub struct PortableBinary;
 
@@ -113,8 +116,10 @@ impl SerializerParams for PortableBinary {
 /// Serializer parameters for platform-specific binary format, which does not need double-ended buffer.
 /// This is probably the fastest option, but serialized data will not be portable.
 ///
-/// It still requires implementation of `TailBytesRead`, `TailBytesWrite` traits for reader
-/// and writer, which should behave same as `BytesRead`, `BytesWrite`.
+/// It still requires implementation of [`TailReadBytes`](crate::buf::TailReadBytes),
+/// [`TailWriteBytes`](crate::buf::TailWriteBytes) traits for reader
+/// and writer, which should behave same as [`ReadBytes`](crate::buf::ReadBytes),
+/// [`WriteBytes`](crate::buf::WriteBytes).
 #[derive(Copy, Clone, Default)]
 pub struct NativeBinary;
 
