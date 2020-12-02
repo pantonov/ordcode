@@ -1,6 +1,6 @@
 #![allow(clippy::float_cmp)]
 
-use ordcode::{*, params::*, primitives, bytes_esc  };
+use ordcode::{*, params::*, primitives::SerializableValue, bytes_esc  };
 use std::{f32, f64};
 
 // test values, few normal ones plus corner cases
@@ -37,12 +37,12 @@ macro_rules! test_ser {
             for val in $tvs {
                 let buf = &mut vec![0_u8; 128];
                 let mut bb  = DeBytesWriter::new(buf);
-                primitives::$sfn(&mut bb, *val, AscendingOrder).unwrap();
-                primitives::$sfn(WriteToTail(&mut bb), *val, DescendingOrder).unwrap();
+                val.to_writer(&mut bb, AscendingOrder).unwrap();
+                val.to_writer(WriteToTail(&mut bb), DescendingOrder).unwrap();
                 let nl = bb.finalize().unwrap();
                 let mut r = DeBytesReader::new(&buf[..nl]);
-                assert_eq!(primitives::$dfn(&mut r, AscendingOrder).unwrap(), *val);
-                assert_eq!(primitives::$dfn(ReadFromTail(&mut r), DescendingOrder).unwrap(), *val);
+                assert_eq!(<$t>::from_reader(&mut r, AscendingOrder).unwrap(), *val);
+                assert_eq!(<$t>::from_reader(ReadFromTail(&mut r), DescendingOrder).unwrap(), *val);
             }
         }
     }
@@ -70,12 +70,12 @@ macro_rules! test_cmpi {
         fn $tn() {
             fn encode_asc(v: $t) -> Vec<u8> {
                 let mut s = vec![];
-                primitives::$sf(&mut s, v, AscendingOrder).unwrap();
+                v.to_writer(&mut s, AscendingOrder).unwrap();
                 s
             }
             fn encode_desc(v: $t) -> Vec<u8> {
                 let mut s = vec![];
-                primitives::$sf(&mut s, v, DescendingOrder).unwrap();
+                v.to_writer(&mut s, DescendingOrder).unwrap();
                 s
             }
             for v1 in $tvs {
@@ -108,7 +108,7 @@ test_cmpi!(cmp_f64, f64, serialize_f64, V_F64);
 fn test_cmp_f32_asc() {
     fn encode_asc(v: f32) -> Vec<u8> {
         let mut s = vec![];
-        primitives::serialize_f32(&mut s, v, AscendingOrder).unwrap();
+        v.to_writer(&mut s, AscendingOrder).unwrap();
         s
     }
     assert!(encode_asc(f32::NEG_INFINITY) < encode_asc(f32::MIN));
@@ -124,7 +124,7 @@ fn test_cmp_f32_asc() {
 fn test_cmp_f32_desc() {
     fn encode_desc(v: f32) -> Vec<u8> {
         let mut s = vec![];
-        primitives::serialize_f32(&mut s, v, DescendingOrder).unwrap();
+        v.to_writer(&mut s, DescendingOrder).unwrap();
         s
     }
     assert!(encode_desc(f32::NEG_INFINITY) > encode_desc(f32::MIN));
@@ -140,7 +140,7 @@ fn test_cmp_f32_desc() {
 fn test_cmp_f64_asc() {
     fn encode(v: f64) -> Vec<u8> {
         let mut s = vec![];
-        primitives::serialize_f64(&mut s, v, AscendingOrder).unwrap();
+        v.to_writer(&mut s, AscendingOrder).unwrap();
         s
     }
     assert!(encode(f64::NEG_INFINITY) < encode(f64::MIN));
@@ -157,7 +157,7 @@ fn test_cmp_f64_asc() {
 fn test_cmp_f64_desc() {
     fn encode(v: f64) -> Vec<u8> {
         let mut s = vec![];
-        primitives::serialize_f64(&mut s, v, DescendingOrder).unwrap();
+        v.to_writer(&mut s, DescendingOrder).unwrap();
         s
     }
     assert!(encode(f64::NEG_INFINITY) > encode(f64::MIN));

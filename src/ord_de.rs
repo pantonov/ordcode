@@ -1,4 +1,5 @@
 use crate::{Error, buf::TailReadBytes, Result, params::{SerializerParams, LengthEncoder }};
+use crate::primitives::SerializableValue;
 use serde::de::IntoDeserializer;
 
 /// `serde` deserializer for binary data format which may preserve lexicographical ordering of values
@@ -34,7 +35,7 @@ macro_rules! impl_nums {
         fn $dser_method<V>(self, visitor: V) -> Result<V::Value>
             where V: serde::de::Visitor<'de>,
         {
-            let value = crate::primitives::$dser_method(&mut self.reader, self.params)?;
+            let value = <$ty>::from_reader(&mut self.reader, self.params)?;
             visitor.$visitor_method(value)
         }
     }
@@ -107,7 +108,7 @@ impl<'a, 'de: 'a, R, P> serde::Deserializer<'de> for &'a mut Deserializer<R, P>
         where
             V: serde::de::Visitor<'de>,
     {
-        let value = crate::primitives::deserialize_u8(&mut self.reader, self.params)?;
+        let value = <u8>::from_reader(&mut self.reader, self.params)?;
         match value {
             0 => visitor.visit_none(),
             1 => visitor.visit_some(&mut *self),

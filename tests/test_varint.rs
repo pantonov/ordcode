@@ -5,22 +5,22 @@ use ordcode::{ *, varint::*  };
 // Original license: https://www.apache.org/licenses/LICENSE-2.0
 fn encode64(value: u64) -> Box<[u8]> {
     let mut s = Vec::<u8>::new();
-    varu64_encode_to_writer(&mut s, value).unwrap();
+    value.varu_to_writer(&mut s).unwrap();
     s.into_boxed_slice()
 }
 
 fn decode64(bytes: &[u8]) -> Result<(u64, u8)> {
-    varu64_decode_from_slice(bytes)
+    <u64>::varu_from_slice(bytes)
 }
 
 fn encode32(value: u32) -> Box<[u8]> {
     let mut s = Vec::<u8>::new();
-    varu32_encode_to_writer(&mut s, value).unwrap();
+    value.varu_to_writer(&mut s).unwrap();
     s.into_boxed_slice()
 }
 
 fn decode32(bytes: &[u8]) -> Result<(u32, u8)> {
-    varu32_decode_from_slice(bytes)
+    <u32>::varu_from_slice(bytes)
 }
 
 
@@ -122,10 +122,10 @@ fn decode_trailing_zeroes() {
 fn with_buffer() {
     let mut buf = vec![0_u8; 10];
     let mut bib = DeBytesWriter::new(&mut buf);
-    varu64_encode_to_writer(&mut bib, 11).unwrap();
-    varu64_encode_to_writer(WriteToTail(&mut bib), 12).unwrap();
+    11u64.varu_to_writer(&mut bib).unwrap();
+    12u64.varu_to_writer(WriteToTail(&mut bib)).unwrap();
     //println!("encoded={:#?}", &buf);
     let mut r = DeBytesReader::new(&buf);
-    assert_eq!(varu64_decode_from_reader(ReadFromTail(&mut r)).unwrap(), 12);
-    assert_eq!(varu64_decode_from_reader(&mut r).unwrap(), 11);
+    assert_eq!(<u64>::varu_from_reader(ReadFromTail(&mut r)).unwrap(), 12);
+    assert_eq!(<u64>::varu_from_reader(&mut r).unwrap(), 11);
 }

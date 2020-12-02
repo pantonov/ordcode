@@ -115,10 +115,10 @@ impl<'a> TailReadBytes for DeBytesReader<'a> {
 
 /// Adapter which implements [`ReadBytes`] for reading from the end of the buffer.
 /// ```
-/// # use ordcode::{ DeBytesReader, ReadFromTail, params, primitives::deserialize_u16 };
+/// # use ordcode::{ DeBytesReader, ReadFromTail, params, primitives::SerializableValue };
 /// let buf = vec![11, 22, 33, 44, 55, 0, 1];
 /// let mut reader = DeBytesReader::new(&buf);
-/// assert_eq!(deserialize_u16(ReadFromTail(&mut reader), params::AscendingOrder).unwrap(), 1);
+/// assert_eq!(<u16>::from_reader(ReadFromTail(&mut reader), params::AscendingOrder).unwrap(), 1);
 /// ```
 pub struct ReadFromTail<'a, R>(pub &'a mut R) where R: TailReadBytes;
 
@@ -221,10 +221,10 @@ impl<'a> TailWriteBytes for DeBytesWriter<'a> {
 
 /// Adapter which implements `WriteBytes` for writing to the end of double-ended buffer
 /// ```
-/// # use ordcode::{ DeBytesWriter, WriteToTail, params, primitives::serialize_u16 };
+/// # use ordcode::{ DeBytesWriter, WriteToTail, params, primitives::SerializableValue };
 /// let mut buf = vec![0_u8; 100];
 /// let mut writer = DeBytesWriter::new(&mut buf);
-/// serialize_u16(WriteToTail(&mut writer), 1, params::AscendingOrder).unwrap();
+/// 1u16.to_writer(WriteToTail(&mut writer), params::AscendingOrder).unwrap();
 /// assert_eq!(&buf[98..100], &[0, 1]);
 /// ```
 pub struct WriteToTail<'a, W>(pub &'a mut W) where W: TailWriteBytes;

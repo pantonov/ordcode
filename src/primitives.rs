@@ -1,10 +1,10 @@
-//! Ordered serialization/deserialization methods for primitive types and byte arrays.
+//! Ordered serialization/deserialization for primitive types and byte arrays.
 //!
 //! If you need to serialize or deserialize a primitive type (e.g. for use as a key), it is better
-//! to use these primitives directly, without using [`serde`].
+//! to use [SerializableValue] trait methods on primitive types directly, without using [`serde`].
 //!
-//! Serialize methods write results to `WriteBytes` trait impl, deserialize methods read from
-//! [`ReadBytes`]. Both are defined on top of this crate.
+//! Serialize method `to_write()` writes results to [WriteBytes] trait impl,
+//!  deserialize method `from_reader()` reads from [ReadBytes].
 //!
 //! **Deserializing a value which was serialized for different [`EncodingParams`](crate::params::EncodingParams)
 //! is unchecked and is undefined behaviour!**
@@ -16,10 +16,19 @@
 //! - integers are encoded min-value-complemented, big-endian layout
 //!
 //! ### Parameters
-//! Encoding parameters are passed to methods via impl of `EncodingParams` (usually ZST struct).
+//! Encoding parameters are passed via impl of `EncodingParams` (usually ZST struct).
 
 use crate::{Result, Error, buf::{ReadBytes, WriteBytes}, params::{EncodingParams, Order, Endianness}};
 use core::convert::TryInto;
+
+/// Serializable value
+///
+/// This crate implements this trait for all primitive types. For complex types, use
+/// provided _serde_ serializer and deserializer.
+pub trait SerializableValue: Sized {
+    fn to_writer<P: EncodingParams>(&self, writer: impl WriteBytes, params: P) -> Result;
+    fn from_reader<P: EncodingParams>(reader: impl ReadBytes, params: P) -> Result<Self>;
+}
 
 /// Serialization data format version
 pub const VERSION: u8 = 1;
@@ -56,27 +65,33 @@ macro_rules! from_bytes {
 // Ordered serialization of integers
 macro_rules! serialize_int {
     ($ufn:ident, $ut:ty, $ifn:ident, $it:ty, $dufn:ident, $difn:ident) => {
-        #[inline]
-        pub fn $ufn<P: EncodingParams>(mut writer: impl WriteBytes, value: $ut, _param: P) -> Result
-        {
-            writer.write(to_bytes!(P, &{ord_cond!(P, !value, value)}))
+        impl SerializableValue for $ut {
+            #[inline]
+            fn to_writer<P: EncodingParams>(&self, mut writer: impl WriteBytes, _params: P) -> Result
+            {
+                writer.write(to_bytes!(P, &{ord_cond!(P, !*self, *self)}))
+            }
+            #[inline]
+            fn from_reader<P: EncodingParams>(mut reader: impl ReadBytes, _params: P) -> Result<Self>
+            {
+                const N: usize = core::mem::size_of::<$ut>();
+                reader.read(N, |buf| {
+                    let rv = from_bytes!(P, $ut, buf);
+                    Ok(ord_cond!(P, !rv, rv))
+                })
+            }
         }
-        #[inline]
-        pub fn $ifn<P: EncodingParams>(writer: impl WriteBytes, value: $it, param: P) -> Result
-        {
-            $ufn(writer, (value ^ <$it>::min_value()) as $ut, param)
-        }
-        #[inline]
-        pub fn $dufn<P: EncodingParams>(mut reader: impl ReadBytes, _param: P) -> Result<$ut> {
-            const N: usize = core::mem::size_of::<$ut>();
-            reader.read(N, |buf| {
-                let rv = from_bytes!(P, $ut, buf);
-                Ok(ord_cond!(P, !rv, rv))
-            })
-        }
-        #[inline]
-        pub fn $difn<P: EncodingParams>(reader: impl ReadBytes, param: P) -> Result<$it> {
-            $dufn(reader, param).map(|u| { (u as $it) ^ <$it>::min_value() })
+        impl SerializableValue for $it {
+            #[inline]
+            fn to_writer<P: EncodingParams>(&self, writer: impl WriteBytes, params: P) -> Result
+            {
+                ((self ^ <$it>::min_value()) as $ut).to_writer(writer, params)
+            }
+            #[inline]
+            fn from_reader<P: EncodingParams>(reader: impl ReadBytes, params: P) -> Result<Self>
+            {
+                <$ut>::from_reader(reader, params).map(|u| { (u as $it) ^ <$it>::min_value() })
+            }
         }
     }
 }
@@ -89,54 +104,53 @@ serialize_int!(serialize_u64, u64, serialize_i64, i64, deserialize_u64, deserial
 #[cfg(not(no_i128))]
 serialize_int!(serialize_u128, u128, serialize_i128, i128, deserialize_u128, deserialize_i128);
 
-#[inline]
-pub fn serialize_bool(writer: impl WriteBytes, v: bool, param: impl EncodingParams) -> Result
-{
-    serialize_u8(writer,if v { 1 } else { 0 }, param)
+impl SerializableValue for bool {
+    fn to_writer<P: EncodingParams>(&self, writer: impl WriteBytes, params: P) -> Result {
+        let v: u8 = if *self { 1 } else { 0 };
+        v.to_writer(writer, params)
+    }
+
+    fn from_reader<P: EncodingParams>(reader: impl ReadBytes, params: P) -> Result<Self> {
+        <u8>::from_reader(reader, params).map(|v| v != 0)
+    }
 }
 
-#[inline]
-pub fn deserialize_bool(reader: impl ReadBytes, param: impl EncodingParams) -> Result<bool>
-{
-    deserialize_u8(reader, param).map(|v| v != 0)
-}
+impl SerializableValue for char {
+    fn to_writer<P: EncodingParams>(&self, writer: impl WriteBytes, params: P) -> Result {
+        (*self as u32).to_writer(writer, params)
+    }
 
-#[inline]
-pub fn serialize_char(writer: impl WriteBytes, v: char, param: impl EncodingParams) -> Result
-{
-    serialize_u32(writer, v as u32, param)
-}
-
-#[inline]
-pub fn deserialize_char(reader: impl ReadBytes, param: impl EncodingParams) -> Result<char>
-{
-    let ch = deserialize_u32(reader, param)?;
-    core::char::from_u32(ch).ok_or_else(|| Error::InvalidUtf8Encoding)
+    fn from_reader<P: EncodingParams>(reader: impl ReadBytes, params: P) -> Result<Self> {
+        let ch = u32::from_reader(reader, params)?;
+        core::char::from_u32(ch).ok_or_else(|| Error::InvalidUtf8Encoding)
+    }
 }
 
 // Ordered serialization of floats
 macro_rules! serialize_float {
     ($ft:ty, $ift:ty, $uft:ty, $sfn:ident, $dfn:ident, $difn:ident) => {
-        #[inline]
-        pub fn $sfn<P: EncodingParams>(mut writer: impl WriteBytes, value: $ft, _param: P) -> Result {
-            let t = value.to_bits() as $ift;
-            let ov = if matches!(P::ENDIANNESS, Endianness::Big) {
+        impl SerializableValue for $ft {
+            #[inline]
+            fn to_writer<P: EncodingParams>(&self, mut writer: impl WriteBytes, _params: P) -> Result {
+                let t = self.to_bits() as $ift;
+                let ov = if matches!(P::ENDIANNESS, Endianness::Big) {
+                    const MSBOFFS: usize = core::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
+                    t ^ ((t >> MSBOFFS) | <$ift>::min_value())
+                } else {
+                    t
+                };
+                writer.write(to_bytes!(P, &ord_cond!(P, !ov, ov)))
+            }
+            #[inline]
+            fn from_reader<P: EncodingParams>(reader: impl ReadBytes, params: P) -> Result<Self> {
                 const MSBOFFS: usize = core::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
-                t ^ ((t >> MSBOFFS) | <$ift>::min_value())
-            } else {
-                t
-            };
-            writer.write(to_bytes!(P, &ord_cond!(P, !ov, ov)))
-        }
-        #[inline]
-        pub fn $dfn<P: EncodingParams>(reader: impl ReadBytes, param: P) -> Result<$ft> {
-            const MSBOFFS: usize = core::mem::size_of::<$ift>() * 8 - 1; // # of bits - 1
-            let val = $difn(reader, param)? as $ift;
-            if matches!(P::ENDIANNESS, Endianness::Big) {
-                let t = ((val ^ <$ift>::min_value()) >> MSBOFFS) | <$ift>::min_value();
-                Ok(<$ft>::from_bits((val ^ t) as $uft))
-            } else {
-                Ok(<$ft>::from_bits(val as $uft))
+                let val = <$uft>::from_reader(reader, params)? as $ift;
+                if matches!(P::ENDIANNESS, Endianness::Big) {
+                    let t = ((val ^ <$ift>::min_value()) >> MSBOFFS) | <$ift>::min_value();
+                    Ok(<$ft>::from_bits((val ^ t) as $uft))
+                } else {
+                    Ok(<$ft>::from_bits(val as $uft))
+                }
             }
         }
     }

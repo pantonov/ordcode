@@ -1,6 +1,7 @@
 use crate::{Error, FormatVersion, buf::TailWriteBytes, Result,
             params::{SerializerParams, LengthEncoder }};
 use crate::params::{AscendingOrder, PortableBinary, NativeBinary};
+use crate::primitives::SerializableValue;
 use serde::{ser, Serialize};
 
 /// `serde` serializer for binary data format which may preserve lexicographical ordering of values
@@ -57,7 +58,9 @@ impl<W> FormatVersion<NativeBinary> for Serializer<W, NativeBinary>  {
 
 macro_rules! serialize_fn {
     ($fn:ident, $t:ty) => {
-        fn $fn(self, v: $t) -> Result { crate::primitives::$fn(&mut self.writer, v, self.params) }
+        fn $fn(self, v: $t) -> Result {
+            v.to_writer(&mut self.writer, self.params)
+        }
     }
 }
 
