@@ -64,7 +64,7 @@ macro_rules! from_bytes {
 
 // Ordered serialization of integers
 macro_rules! serialize_int {
-    ($ufn:ident, $ut:ty, $ifn:ident, $it:ty, $dufn:ident, $difn:ident) => {
+    ($ut:ty, $it:ty) => {
         impl SerializableValue for $ut {
             #[inline]
             fn to_writer<P: EncodingParams>(&self, mut writer: impl WriteBytes, _params: P) -> Result
@@ -96,13 +96,13 @@ macro_rules! serialize_int {
     }
 }
 
-serialize_int!(serialize_u8,  u8,  serialize_i8,  i8,  deserialize_u8,  deserialize_i8);
-serialize_int!(serialize_u16, u16, serialize_i16, i16, deserialize_u16, deserialize_i16);
-serialize_int!(serialize_u32, u32, serialize_i32, i32, deserialize_u32, deserialize_i32);
-serialize_int!(serialize_u64, u64, serialize_i64, i64, deserialize_u64, deserialize_i64);
+serialize_int!(u8,  i8);
+serialize_int!(u16, i16);
+serialize_int!(u32, i32);
+serialize_int!(u64, i64);
 
 #[cfg(not(no_i128))]
-serialize_int!(serialize_u128, u128, serialize_i128, i128, deserialize_u128, deserialize_i128);
+serialize_int!(u128, i128);
 
 impl SerializableValue for bool {
     fn to_writer<P: EncodingParams>(&self, writer: impl WriteBytes, params: P) -> Result {
@@ -128,7 +128,7 @@ impl SerializableValue for char {
 
 // Ordered serialization of floats
 macro_rules! serialize_float {
-    ($ft:ty, $ift:ty, $uft:ty, $sfn:ident, $dfn:ident, $difn:ident) => {
+    ($ft:ty, $ift:ty, $uft:ty) => {
         impl SerializableValue for $ft {
             #[inline]
             fn to_writer<P: EncodingParams>(&self, mut writer: impl WriteBytes, _params: P) -> Result {
@@ -156,8 +156,8 @@ macro_rules! serialize_float {
     }
 }
 
-serialize_float!(f32, i32, u32, serialize_f32, deserialize_f32, deserialize_u32);
-serialize_float!(f64, i64, u64, serialize_f64, deserialize_f64, deserialize_u64);
+serialize_float!(f32, i32, u32);
+serialize_float!(f64, i64, u64);
 
 /// Bitwise invert contents of a buffer
 pub fn invert_buffer(buf: &mut [u8])
