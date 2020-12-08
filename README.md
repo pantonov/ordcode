@@ -1,5 +1,8 @@
 # Ordcode
 
+
+![Build](https://github.com/pantonov/ordcode/workflows/Build/badge.svg)
+
  A set of primitives and [Serde](https://serde.rs) serializers for
  fast, prefix-free encoding which preserves lexicographical ordering of values.
 
