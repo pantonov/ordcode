@@ -50,7 +50,7 @@
 //#![doc(html_root_url = "https://docs.rs/ordcode")]
 #![crate_name = "ordcode"]
 #![deny(clippy::all, clippy::pedantic)]
-#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_errors_doc, clippy::map_err_ignore )]
 
 #[cfg(feature="serde")] #[macro_use] extern crate serde;
 
@@ -211,7 +211,7 @@ pub fn ser_to_buf_asc_exact<T>(buf: &mut [u8], value: &T) -> Result
 pub fn ser_to_vec_ordered<T>(value: &T, order: Order) -> Result<Vec<u8>>
     where T: ?Sized + serde::ser::Serialize,
 {
-    let mut byte_buf = vec![0u8; calc_size(value, params::AscendingOrder)?];
+    let mut byte_buf = vec![0_u8; calc_size(value, params::AscendingOrder)?];
     let mut de_buf = DeBytesWriter::new(byte_buf.as_mut_slice());
     let mut ser = new_ser_asc(&mut de_buf);
     value.serialize(&mut ser)?;

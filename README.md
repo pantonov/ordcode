@@ -1,11 +1,5 @@
 # Ordcode
 
-[![Build Status](https://travis-ci.org/pantonov/ordcode.svg?branch=master)](https://travis-ci.org
-/pantonov/ordcode)
-[![Crates.io](https://img.shields.io/crates/v/ordcode.svg)](https://crates.io/crates/ordcode)
-[![Documentation](https://docs.rs/ordcode/badge.svg)](https://docs.rs/ordcode)
-
-
  A set of primitives and [Serde](https://serde.rs) serializers for
  fast, prefix-free encoding which preserves lexicographical ordering of values.
 
@@ -22,7 +16,7 @@
  it is possible to get original length of serialized byte sequence(s) by deserializing of
  a few bytes only.
  For serialization, this implementation provides (very fast) calculation of exact size
- of serialized data length before serialization itself. These features
+ of serialized data length prior to serialization. These features
  enable effective and predictable buffer management for repetitive scans and no-heap
  (`#[no-std]`) targets.
 

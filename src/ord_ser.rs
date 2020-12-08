@@ -172,11 +172,11 @@ impl<'a, W, P> ser::Serializer for &'a mut Serializer<W, P>
     }
     // map and seq are variable-length sequences, use double encoding
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
-        let len = len.ok_or_else(|| Error::SerializeSequenceMustHaveLength)?;
+        let len = len.ok_or(Error::SerializeSequenceMustHaveLength)?;
         SerializeCompoundSeq::new(len, self)
     }
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
-        let len = len.ok_or_else (|| Error::SerializeSequenceMustHaveLength)?;
+        let len = len.ok_or(Error::SerializeSequenceMustHaveLength)?;
         SerializeCompoundSeq::new(len, self)
     }
     #[cfg(not(feature = "std"))]

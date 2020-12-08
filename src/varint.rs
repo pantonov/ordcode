@@ -1,7 +1,7 @@
 //!
-//! Fast variable length serialization of unsigned integers with [VarUInt] trait.
+//! Fast variable length serialization of unsigned integers with [`VarUInt`] trait.
 //!
-//! This trait is implemented by this crate for [u32], [u64] integer types.
+//! This trait is implemented by this crate for [`u32`], [`u64`] integer types.
 use crate::{buf::{ReadBytes, WriteBytes, TailReadBytes, TailWriteBytes, WriteToTail, ReadFromTail},
             params::LengthEncoder, Result, Error};
 

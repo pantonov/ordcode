@@ -184,7 +184,6 @@ impl<'a> DeBytesWriter<'a> {
         }
     }
     /// Checks if buffer completely filled
-    #[must_use]
     pub fn is_complete(&self) -> Result {
         if self.head == self.tail {
             Ok(())

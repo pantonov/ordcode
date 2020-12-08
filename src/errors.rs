@@ -4,7 +4,7 @@
 #[non_exhaustive]
 pub enum Error {
     #[doc(hidden)]
-    SerdeCustomError,  // not used, but need to satisfy serde Error traits
+    Serde,  // not used, but need to satisfy serde Error traits
     SerializeSequenceMustHaveLength,
     BufferOverflow,
     BufferUnderflow,
@@ -23,7 +23,7 @@ impl Error {
     #[cfg(feature = "std")]
     fn descr(&self) -> &str {
         match self {
-            Error::SerdeCustomError => "serde custom error", // not used
+            Error::Serde => "serde custom error", // not used
             Error::SerializeSequenceMustHaveLength => "serialized sequence must have length",
             Error::BufferOverflow => "serialized data buffer overflow",
             Error::BufferUnderflow => "serialized data buffer underflow",
@@ -56,12 +56,12 @@ impl std::error::Error for Error {}
 const _: () =  {
     impl serde::ser::Error for Error {
         fn custom<T: core::fmt::Display>(_msg: T) -> Self {
-            Self::SerdeCustomError
+            Self::Serde
         }
     }
     impl serde::de::Error for Error {
         fn custom<T: core::fmt::Display>(_msg: T) -> Self {
-            Self::SerdeCustomError
+            Self::Serde
         }
     }
 };

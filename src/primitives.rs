@@ -1,10 +1,10 @@
 //! Ordered serialization/deserialization for primitive types and byte arrays.
 //!
 //! If you need to serialize or deserialize a primitive type (e.g. for use as a key), it is better
-//! to use [SerializableValue] trait methods on primitive types directly, without using [`serde`].
+//! to use [`SerializableValue`] trait methods on primitive types directly, without using [`serde`].
 //!
-//! Serialize method `to_write()` writes results to [WriteBytes] trait impl,
-//!  deserialize method `from_reader()` reads from [ReadBytes].
+//! Serialize method `to_write()` writes results to [`WriteBytes`] trait impl,
+//!  deserialize method `from_reader()` reads from [`ReadBytes`].
 //!
 //! **Deserializing a value which was serialized for different [`EncodingParams`](crate::params::EncodingParams)
 //! is unchecked and is undefined behaviour!**
@@ -122,7 +122,7 @@ impl SerializableValue for char {
 
     fn from_reader<P: EncodingParams>(reader: impl ReadBytes, params: P) -> Result<Self> {
         let ch = u32::from_reader(reader, params)?;
-        core::char::from_u32(ch).ok_or_else(|| Error::InvalidUtf8Encoding)
+        core::char::from_u32(ch).ok_or(Error::InvalidUtf8Encoding)
     }
 }
 
