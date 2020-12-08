@@ -11,7 +11,7 @@
 //! deserialized data. Instead, we take advantage of the fact that exact record size is always
 //! known in key-value databases, so this implementation relies on "two-sided" buffer design:
 //! sequence lengths are varint-encoded and pushed to the tail end of the buffer, so
-//! it is possible to get original length of serialized byte sequence(s) by deserializing of
+//! it is possible to get original length of serialized byte sequence(s) by deserializing
 //! a few bytes only.
 //! For serialization, this implementation provides (very fast) calculation of exact size
 //! of serialized data length before serialization itself. These features
@@ -41,7 +41,7 @@
 //!
 //! ## Stability guarantees
 //! The underlying encoding format is simple and unlikely to change.
-//! As a safeguard, [`Serializer`] implements [`FormatVersion`] trait for all serializer parameter
+//! As a safeguard, [`Serializer`] and [`Deserializer`] implement [`FormatVersion`] trait for all serializer parameter
 //! pre-sets ([`params::AscendingOrder`], [`params::PortableBinary`], [`params::NativeBinary`]).
 //!
 //! Note: serializing with descending lexicographical order is particularly useful for key-value

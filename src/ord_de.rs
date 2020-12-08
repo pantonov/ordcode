@@ -1,4 +1,5 @@
-use crate::{Error, buf::TailReadBytes, Result, params::{SerializerParams, LengthEncoder }};
+use crate::{Error, FormatVersion, buf::TailReadBytes, Result, params::{SerializerParams, LengthEncoder }};
+use crate::params::{AscendingOrder, PortableBinary, NativeBinary};
 use crate::primitives::SerializableValue;
 use serde::de::IntoDeserializer;
 
@@ -27,6 +28,18 @@ impl<'de, R, P> Deserializer<R, P>
         let len = P::SeqLenEncoder::read(&mut self.reader)?;
         self.reader.read(len, f)
     }
+}
+
+impl<W> FormatVersion<AscendingOrder> for Deserializer<W, AscendingOrder>  {
+    const VERSION: u32 = 1;
+}
+
+impl<W> FormatVersion<PortableBinary> for Deserializer<W, PortableBinary>  {
+    const VERSION: u32 = 1;
+}
+
+impl<W> FormatVersion<NativeBinary> for Deserializer<W, NativeBinary>  {
+    const VERSION: u32 = 1;
 }
 
 macro_rules! impl_nums {
