@@ -177,7 +177,7 @@ fn varu32_decode(varu_encoded_length: u8, first_byte: u8, bytes: &[u8]) -> Resul
     } else {
         encoded[0] = first_byte;
         let len = varu_encoded_length as usize;
-        encoded[1..len as usize].copy_from_slice(&bytes[..len-1 as usize]);
+        encoded[1..len].copy_from_slice(&bytes[..len-1 as usize]);
         u32::from_le_bytes(encoded) >> varu_encoded_length
     };
     #[cfg(debug_assertions)]
