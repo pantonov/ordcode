@@ -1,19 +1,19 @@
 [package]
 name = "ordcode"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Paul Antonov, <paul.antonov@gmail.com>"]
-exclude = [".gitignore", ".idea", ".travis.yml"]
+exclude = [".gitignore", ".github", "ensure_features"]
 edition = "2018"
 
-publish=false
+publish=true
 repository = "https://github.com/pantonov/ordcode"
-#documentation = "https://docs.rs/ordcode"
+documentation = "https://docs.rs/ordcode"
 readme = "README.md"
 categories = [ "encoding", "data-structures", "database" ]
-keywords = [ "ordered", "lexicographical", "encoding", "serialize", "key-value" ]
+keywords = [ "ordered", "lexicographical", "encoding", "serde", "key-value" ]
 
 license = "MIT OR Apache-2.0"
-description = "Serialization which preserves lexicographical ordering, for use with key-value databases"
+description = "Serialization format which preserves lexicographical ordering, for use with key-value databases"
 
 [features]
 default = [ "std", "serde" ]
