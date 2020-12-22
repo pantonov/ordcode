@@ -257,7 +257,7 @@ impl WriteBytes for Vec<u8> {
 /// Pushes data to the vector, same as `write()`
 ///
 /// This means that `Serializer` can write to `Vec<u8>` buffer directly and grow it as needed,
-/// however in this case lexicographical ordering property will not be preserved.
+/// however in this case lexicographic ordering property will not be preserved.
 #[cfg(feature="std")]
 impl TailWriteBytes for Vec<u8> {
     fn write_tail(&mut self, buf: &[u8]) -> Result {

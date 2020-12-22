@@ -3,7 +3,7 @@ use crate::params::{AscendingOrder, PortableBinary, NativeBinary};
 use crate::primitives::SerializableValue;
 use serde::de::IntoDeserializer;
 
-/// `serde` deserializer for binary data format which may preserve lexicographical ordering of values
+/// `serde` deserializer for binary data format which may preserve lexicographic ordering of values
 ///
 /// Please see `Serializer` documentation for more details.
 pub struct Deserializer<R, P> {

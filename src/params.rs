@@ -4,7 +4,7 @@
 
 use crate::{varint, Result, buf::{TailReadBytes, TailWriteBytes}};
 
-/// Lexicographical ordering for serialization
+/// lexicographic ordering for serialization
 ///
 /// Note that there are no ordering marks in the serialized data; specification of different ordering
 /// for serialization and deserialization of the same data is UB.
@@ -16,7 +16,7 @@ pub enum Order {
     Unordered
 }
 
-/// Endianness representation for serialized integers.
+/// Endianness representation for serialized integers
 #[derive(Copy, Clone)]
 pub enum Endianness {
     Little,
@@ -24,17 +24,17 @@ pub enum Endianness {
     Native,
 }
 
-/// Encoding parameters for primitive types serialization: lexicographical order and endianness.
+/// Encoding parameters for primitive types serialization: lexicographic order and endianness.
 pub trait EncodingParams: Copy {
     /// Serialization ordering of primitive types
     ///
     /// Note that you should not specify [`Order::Descending`] when parameterizing [`Serializer`](crate::Serializer):
-    /// descending ordering for composite types is achieved differently, by negating resulting
+    /// descending ordering for composite types is achieved differently, by negating the resulting
     /// byte buffer (this is also faster).
     const ORDER: Order;
 
     /// Endianness for encoding integer and float values; for encodings which preserve
-    /// lexicographical ordering, should be [`Endianness::Big`]
+    /// lexicographic ordering, should be [`Endianness::Big`]
     const ENDIANNESS: Endianness;
 }
 
@@ -68,7 +68,7 @@ impl <T> SerializerParams for &T where T: SerializerParams {
     type DiscriminantEncoder = T::DiscriminantEncoder;
 }
 
-/// Serializer parameters for lexicographical order-preserving serialization in ascending order
+/// Serializer parameters for lexicographic order-preserving serialization in ascending order
 #[derive(Copy, Clone, Default)]
 pub struct AscendingOrder;
 
@@ -82,7 +82,7 @@ impl SerializerParams for AscendingOrder {
     type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }
 
-/// Encoding paramerers for lexicographical order-preserving serialization in descending order
+/// Encoding parameters for lexicographic order-preserving serialization in descending order
 ///
 /// Note: deliberately implements only [`EncodingParams`] trait, not [`SerializerParams`], so it can
 /// be used with serialization primitives, but not with [`Serializer`](crate::Serializer)
@@ -95,7 +95,8 @@ impl EncodingParams for DescendingOrder {
     const ENDIANNESS: Endianness = Endianness::Big;
 }
 
-/// Serializer parameters for portable binary format, which does not need double-ended buffer.
+/// Serializer parameters for portable binary format, which does not need double-ended buffer
+///
 /// However, it still requires implementation of [`TailReadBytes`](crate::buf::TailReadBytes),
 /// [`TailWriteBytes`](crate::buf::TailWriteBytes) traits
 /// for reader and writer, which should behave same as [`ReadBytes`](crate::buf::ReadBytes),
@@ -113,12 +114,12 @@ impl SerializerParams for PortableBinary {
     type DiscriminantEncoder = varint::VarIntDiscrEncoder;
 }
 
-/// Serializer parameters for platform-specific binary format, which does not need double-ended buffer.
-/// This is probably the fastest option, but serialized data will not be portable.
+/// Serializer parameters for platform-specific binary format, which does not need a double-ended buffer
 ///
+/// This is probably the fastest option, but serialized data will not be portable.
 /// It still requires implementation of [`TailReadBytes`](crate::buf::TailReadBytes),
 /// [`TailWriteBytes`](crate::buf::TailWriteBytes) traits for reader
-/// and writer, which should behave same as [`ReadBytes`](crate::buf::ReadBytes),
+/// and writer, which should behave the same as [`ReadBytes`](crate::buf::ReadBytes),
 /// [`WriteBytes`](crate::buf::WriteBytes).
 #[derive(Copy, Clone, Default)]
 pub struct NativeBinary;

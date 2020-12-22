@@ -4,21 +4,21 @@ use crate::params::{AscendingOrder, PortableBinary, NativeBinary};
 use crate::primitives::SerializableValue;
 use serde::{ser, Serialize};
 
-/// `serde` serializer for binary data format which may preserve lexicographical ordering of values
+/// `serde` serializer for binary data format which may preserve lexicographic ordering of values
 ///
-/// The data format is customizable: you can choose lexicographical ordering for encoding
+/// The data format is customizable: you can choose lexicographic ordering for encoding
 /// of primitive types, endianness, encoding of lengths and enum discriminants; please see
 /// `SerializerParams` trait. This crate provides `params::AscendingOrder`, which is a default
-/// parameter set for `Serializer` which has the property to preserve lexicographical ordering
-/// of serialized values. To obtain the descending lexicographical ordering, resulting byte buffer
+/// parameter set for `Serializer` which has the property to preserve lexicographic ordering
+/// of serialized values. To obtain the descending lexicographic ordering, the resulting byte buffer
 /// should be bitwise inverted, e.g. with `primitives::invert_buffer())`.
 ///
-/// Serializer requires access to double-ended data buffer, which should implement
-/// `WriteBytes` and `TailWriteBytes` traits. This crate provides `DeWriteBuffer` type, which
-/// is a wrapper around user-provided mutable slice to be used as a write buffer.
+/// Serializer requires access to a double-ended data buffer, which should implement
+/// `WriteBytes` and `TailWriteBytes` traits. This crate provides a `DeWriteBuffer` type, which
+/// is a wrapper around a user-provided mutable slice to be used as a write buffer.
 ///
 /// Serializer does not allocate anything: double-ended buffer should be big enough to contain
-/// serialized data. To know required buffer size in advance, please use `calc_size` with same
+/// serialized data. To know required buffer size in advance, please use `calc_size` with the same
 /// `SerializerParams`. Size calculation is cheap, for fixed-size structures it folds into
 /// compile-time constant.
 pub struct Serializer<W, P> {

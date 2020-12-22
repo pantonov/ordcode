@@ -1,5 +1,5 @@
 //! A set of primitives and [Serde](https://serde.rs) serializers for
-//! fast, prefix-free encoding which preserves lexicographical ordering of values.
+//! fast, prefix-free encoding which preserves lexicographic ordering of values.
 //!
 //! It is intended for encoding keys and values in key-value databases.
 //!
@@ -20,9 +20,9 @@
 //!
 //! ## Features
 //!
-//! * encodings in both ascending and descending lexicographical orderings are supported
+//! * encodings in both ascending and descending lexicographic orderings are supported
 //! * encoding puts lengths of variable-size sequences to the end of serialized data,
-//!   so resulting encoding is prefix-free and friendly to lexicographical ordering
+//!   so resulting encoding is prefix-free and friendly to lexicographic ordering
 //! * zero allocations, supports `#[no_std]` environments
 //! * method to cheaply get exact size of serialized data without doing actual serialization,
 //!   for effective buffer management
@@ -44,7 +44,7 @@
 //! As a safeguard, [`Serializer`] and [`Deserializer`] implement [`FormatVersion`] trait for all serializer parameter
 //! pre-sets ([`params::AscendingOrder`], [`params::PortableBinary`], [`params::NativeBinary`]).
 //!
-//! Note: serializing with descending lexicographical order is particularly useful for key-value
+//! Note: serializing with descending lexicographic order is particularly useful for key-value
 //! databases like _rocksdb_, where reverse iteration is slower than forward iteration.
 
 //#![doc(html_root_url = "https://docs.rs/ordcode")]

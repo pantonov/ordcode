@@ -24,7 +24,7 @@ pub trait VarUInt: Sized {
     
     /// Encode variable length integer into slice
     ///
-    /// Slice must be of enough length, can be calculated with `varu_encoded_len()`.
+    /// Slice must be of enough length, and can be calculated with `varu_encoded_len()`.
     /// Returns actual length of encoded varint.
     fn varu_to_slice(&self, bytes: &mut [u8]) -> u8;
 }
