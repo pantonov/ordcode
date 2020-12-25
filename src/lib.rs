@@ -9,7 +9,7 @@
 //! "end-of-sequence" bytes. This takes extra space, and makes it difficult to know sequence length
 //! without processing the whole input buffer; this also complicates memory allocation for
 //! deserialized data. Instead, we take advantage of the fact that exact record size is always
-//! known in key-value databases, so this implementation relies on "two-sided" buffer design:
+//! known in key-value databases. This implementation relies on "two-sided" buffer design:
 //! sequence lengths are varint-encoded and pushed to the tail end of the buffer, so
 //! it is possible to get original length of serialized byte sequence(s) by deserializing
 //! a few bytes only.
@@ -41,13 +41,12 @@
 //!
 //! ## Stability guarantees
 //! The underlying encoding format is simple and unlikely to change.
-//! As a safeguard, [`Serializer`] and [`Deserializer`] implement [`FormatVersion`] trait for all serializer parameter
-//! pre-sets ([`params::AscendingOrder`], [`params::PortableBinary`], [`params::NativeBinary`]).
+//! As a safeguard, `Serializer` and `Deserializer` implement `FormatVersion` trait for all serializer parameter
+//! pre-sets (`params::AscendingOrder`, `params::PortableBinary`, `params::NativeBinary`).
 //!
 //! Note: serializing with descending lexicographic order is particularly useful for key-value
 //! databases like _rocksdb_, where reverse iteration is slower than forward iteration.
 
-//#![doc(html_root_url = "https://docs.rs/ordcode")]
 #![crate_name = "ordcode"]
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(clippy::missing_errors_doc, clippy::map_err_ignore )]
