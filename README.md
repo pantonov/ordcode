@@ -1,4 +1,5 @@
 ![Build](https://github.com/pantonov/ordcode/workflows/Build/badge.svg)
+![Docs](https://docs.rs/ordcode/badge.svg)
 
 # ordcode
 
